@@ -1,0 +1,12 @@
+[package]
+description = "A powerful openapi library for Rust"
+name = "openapi-rs"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/baerwang/openapi-rs"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"

@@ -1,0 +1,84 @@
+openapi: 3.1.0
+info:
+  title: Example API
+  description: API definitions for example
+  version: '0.0.1'
+  x-file-identifier: example
+
+components:
+  schemas:
+    ExampleRequest:
+      title: example request
+      description: example request
+      type: object
+      properties:
+        result:
+          type: string
+          description: example
+          example: example
+      required:
+        - result
+
+    ExampleResponse:
+      allOf:
+        - type: object
+          properties:
+            result:
+              type: object
+              description: example.
+              properties:
+                uuid:
+                  type: string
+                  description: The UUID for this example.
+                  format: uuid
+                  example: 00000000-0000-0000-0000-000000000000
+                count:
+                  type: integer
+                  description: example count.
+                  example: 1
+                  minimum: 0
+              required:
+                - uuid
+
+security: [ ]
+
+paths:
+  
+  /example/{uuid}:
+    get:
+      parameters:
+        - name: uuid
+          description: The UUID for this example.
+          in: path
+          schema:
+            type: string
+            format: uuid
+            example: 00000000-0000-0000-0000-000000000000
+      responses:
+        '200':
+          description: Get a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+  
+  /example:
+    post:
+      summary: Example
+      description: Example
+      operationId: example
+      tags:
+        - Example
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExampleRequest"
+      responses:
+        '201':
+          description: Create a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
