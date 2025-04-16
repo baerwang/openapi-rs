@@ -15,5 +15,11 @@
  * limitations under the License.
  */
 
-pub mod model;
-pub mod request;
+use std::io::Error;
+
+pub trait ValidateRequest {
+    fn header(&self) -> Result<(), Error>;
+    fn query(&self) -> Result<(), Error>;
+    fn path(&self) -> Result<(), Error>;
+    fn body(&self) -> Result<(), Error>;
+}

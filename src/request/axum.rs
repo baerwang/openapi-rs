@@ -15,5 +15,31 @@
  * limitations under the License.
  */
 
-pub mod model;
-pub mod request;
+use crate::request::validator::ValidateRequest;
+use axum::body::{Body, Bytes};
+use axum::http::Request;
+use std::io::Error;
+
+#[allow(dead_code)]
+pub struct RequestData {
+    inner: Request<Body>,
+    body: Bytes,
+}
+
+impl ValidateRequest for RequestData {
+    fn header(&self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn query(&self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn path(&self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn body(&self) -> Result<(), Error> {
+        Ok(())
+    }
+}

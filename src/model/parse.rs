@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+use crate::request::validator::ValidateRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -36,6 +37,19 @@ pub struct OpenAPI {
 impl OpenAPI {
     pub fn yaml(contents: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(contents)
+    }
+
+    pub fn validator(&self, _: impl ValidateRequest) -> Result<(), String> {
+        if self.openapi.is_empty() {
+            return Err("OpenAPI version is required".to_string());
+        }
+        if self.info.title.is_empty() {
+            return Err("Title is required".to_string());
+        }
+        if self.info.version.is_empty() {
+            return Err("Version is required".to_string());
+        }
+        Ok(())
     }
 }
 

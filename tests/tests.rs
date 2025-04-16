@@ -17,7 +17,7 @@
 
 #[cfg(test)]
 mod tests {
-    use openapi_rs::model::prase::{Format, In, Method, OpenAPI, Type};
+    use openapi_rs::model::parse::{Format, In, Method, OpenAPI, Type};
     use serde_yaml::Value;
     use serde_yaml::Value::Sequence;
     use std::env;
