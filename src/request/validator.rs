@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-use std::io::Error;
+use crate::model::parse::OpenAPI;
+use anyhow::Result;
 
 pub trait ValidateRequest {
-    fn header(&self) -> Result<(), Error>;
-    fn query(&self) -> Result<(), Error>;
-    fn path(&self) -> Result<(), Error>;
-    fn body(&self) -> Result<(), Error>;
+    fn header(&self, _: &OpenAPI) -> Result<()>;
+    fn method(&self, _: &OpenAPI) -> Result<()>;
+    fn query(&self, _: &OpenAPI) -> Result<()>;
+    fn path(&self, _: &OpenAPI) -> Result<()>;
+    fn body(&self, _: &OpenAPI) -> Result<()>;
 }

@@ -19,6 +19,7 @@ use crate::request::validator::ValidateRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OpenAPI {
@@ -39,7 +40,7 @@ impl OpenAPI {
         serde_yaml::from_str(contents)
     }
 
-    pub fn validator(&self, _: impl ValidateRequest) -> Result<(), String> {
+    pub fn validator(&self, valid: impl ValidateRequest) -> Result<(), String> {
         if self.openapi.is_empty() {
             return Err("OpenAPI version is required".to_string());
         }
@@ -49,6 +50,10 @@ impl OpenAPI {
         if self.info.version.is_empty() {
             return Err("Version is required".to_string());
         }
+        if self.paths.is_empty() {
+            return Err("Paths are required".to_string());
+        }
+        valid.path(self).unwrap();
         Ok(())
     }
 }
@@ -212,6 +217,25 @@ pub enum Method {
     Patch,
     Options,
     Trace,
+}
+
+impl FromStr for Method {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "GET" => Ok(Method::Get),
+            "HEAD" => Ok(Method::Head),
+            "POST" => Ok(Method::Post),
+            "PUT" => Ok(Method::Put),
+            "DELETE" => Ok(Method::Delete),
+            "CONNECT" => Ok(Method::Connect),
+            "PATCH" => Ok(Method::Patch),
+            "OPTIONS" => Ok(Method::Options),
+            "TRACE" => Ok(Method::Trace),
+            _ => Err(format!("Invalid method: {}", s)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

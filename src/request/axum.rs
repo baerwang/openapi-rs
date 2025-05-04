@@ -14,11 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+use crate::model::parse::{Method, OpenAPI};
 use crate::request::validator::ValidateRequest;
+use anyhow::{Context, Result};
 use axum::body::{Body, Bytes};
 use axum::http::Request;
-use std::io::Error;
+use std::str::FromStr;
 
 #[allow(dead_code)]
 pub struct RequestData {
@@ -27,19 +28,34 @@ pub struct RequestData {
 }
 
 impl ValidateRequest for RequestData {
-    fn header(&self) -> Result<(), Error> {
+    fn header(&self, _: &OpenAPI) -> Result<()> {
         Ok(())
     }
 
-    fn query(&self) -> Result<(), Error> {
+    fn method(&self, open_api: &OpenAPI) -> Result<()> {
+        let path = open_api
+            .paths
+            .get(self.inner.uri().path())
+            .context("Path not found")?;
+
+        let method =
+            Method::from_str(self.inner.method().as_str()).map_err(|e| anyhow::anyhow!(e))?;
+
+        if path.get(&method).is_none() {
+            return Err(anyhow::anyhow!("Path is empty"));
+        }
         Ok(())
     }
 
-    fn path(&self) -> Result<(), Error> {
+    fn query(&self, _: &OpenAPI) -> Result<()> {
         Ok(())
     }
 
-    fn body(&self) -> Result<(), Error> {
+    fn path(&self, _: &OpenAPI) -> Result<()> {
+        Ok(())
+    }
+
+    fn body(&self, _: &OpenAPI) -> Result<()> {
         Ok(())
     }
 }
