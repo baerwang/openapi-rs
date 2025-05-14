@@ -47,7 +47,14 @@ impl ValidateRequest for RequestData {
         Ok(())
     }
 
-    fn query(&self, _: &OpenAPI) -> Result<()> {
+    fn query(&self, open_api: &OpenAPI) -> Result<()> {
+        let uri = self.inner.uri();
+        let path = open_api.paths.get(uri.path()).context("Path not found")?;
+
+        let _ = path
+            .get(&Method::Get)
+            .context("GET method not defined for this path")?;
+
         Ok(())
     }
 
