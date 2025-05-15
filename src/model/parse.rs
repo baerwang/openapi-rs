@@ -53,7 +53,9 @@ impl OpenAPI {
         if self.paths.is_empty() {
             return Err("Paths are required".to_string());
         }
-        valid.path(self).unwrap();
+        if valid.path(self).is_err() {
+            return Err("Path validation failed".to_string());
+        }
         Ok(())
     }
 }

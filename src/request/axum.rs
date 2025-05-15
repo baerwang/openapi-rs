@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::model::parse::{Method, OpenAPI};
+use crate::model::parse::{Format, In, Method, OpenAPI};
 use crate::request::validator::ValidateRequest;
 use anyhow::{Context, Result};
 use axum::body::{Body, Bytes};
@@ -23,8 +23,9 @@ use std::str::FromStr;
 
 #[allow(dead_code)]
 pub struct RequestData {
-    inner: Request<Body>,
-    body: Bytes,
+    pub path: String,
+    pub inner: Request<Body>,
+    pub body: Bytes,
 }
 
 impl ValidateRequest for RequestData {
@@ -58,7 +59,45 @@ impl ValidateRequest for RequestData {
         Ok(())
     }
 
-    fn path(&self, _: &OpenAPI) -> Result<()> {
+    fn path(&self, open_api: &OpenAPI) -> Result<()> {
+        let path = open_api
+            .paths
+            .get(self.path.as_str())
+            .context("Path not found")?;
+
+        let path_base = path
+            .get(&Method::Get)
+            .context("GET method not defined for this path")?;
+
+        let uri = self.inner.uri();
+
+        if let Some(parameters) = &path_base.parameters {
+            if let Some(last_segment) = uri.path().rsplit('/').find(|s| !s.is_empty()) {
+                for parameter in parameters {
+                    if parameter._in != In::Path {
+                        continue;
+                    }
+
+                    match parameter.schema.format {
+                        Format::UUID => {
+                            if uuid::Uuid::parse_str(last_segment).is_err() {
+                                return Err(anyhow::anyhow!(
+                                    "Invalid UUID format for path '{}'",
+                                    last_segment
+                                ));
+                            }
+                        }
+                        _ => {
+                            return Err(anyhow::anyhow!(
+                                "Unsupported format '{:?}' for path parameter '{}'",
+                                parameter.schema.format,
+                                parameter.name
+                            ));
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
