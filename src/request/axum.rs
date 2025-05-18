@@ -19,6 +19,7 @@ use crate::request::validator::ValidateRequest;
 use anyhow::{Context, Result};
 use axum::body::{Body, Bytes};
 use axum::http::Request;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[allow(dead_code)]
@@ -36,7 +37,7 @@ impl ValidateRequest for RequestData {
     fn method(&self, open_api: &OpenAPI) -> Result<()> {
         let path = open_api
             .paths
-            .get(self.inner.uri().path())
+            .get(self.path.as_str())
             .context("Path not found")?;
 
         let method =
@@ -49,12 +50,45 @@ impl ValidateRequest for RequestData {
     }
 
     fn query(&self, open_api: &OpenAPI) -> Result<()> {
-        let uri = self.inner.uri();
-        let path = open_api.paths.get(uri.path()).context("Path not found")?;
+        let path = open_api
+            .paths
+            .get(self.path.as_str())
+            .context("Path not found")?;
 
-        let _ = path
+        let path_base = path
             .get(&Method::Get)
             .context("GET method not defined for this path")?;
+
+        let query_str = self.inner.uri().query().unwrap_or_default();
+        let query_pairs: HashMap<_, _> = url::form_urlencoded::parse(query_str.as_bytes())
+            .into_owned()
+            .collect();
+
+        if let Some(parameters) = &path_base.parameters {
+            for parameter in parameters {
+                if parameter._in != In::Query {
+                    continue;
+                }
+
+                if let Some(value) = query_pairs.get(&parameter.name) {
+                    validate_format(&parameter.schema.format, value, &parameter.name)?;
+                }
+
+                if let Some(schema_ref) = &parameter.schema._ref {
+                    if let Some(components) = &open_api.components {
+                        if let Some(schema) = components.schemas.get(schema_ref.as_str()) {
+                            if let Some(properties) = &schema.properties {
+                                for (key, prop) in properties {
+                                    if let Some(value) = query_pairs.get(key) {
+                                        validate_format(&prop.format, value, key)?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
@@ -77,24 +111,7 @@ impl ValidateRequest for RequestData {
                     if parameter._in != In::Path {
                         continue;
                     }
-
-                    match parameter.schema.format {
-                        Format::UUID => {
-                            if uuid::Uuid::parse_str(last_segment).is_err() {
-                                return Err(anyhow::anyhow!(
-                                    "Invalid UUID format for path '{}'",
-                                    last_segment
-                                ));
-                            }
-                        }
-                        _ => {
-                            return Err(anyhow::anyhow!(
-                                "Unsupported format '{:?}' for path parameter '{}'",
-                                parameter.schema.format,
-                                parameter.name
-                            ));
-                        }
-                    }
+                    validate_format(&parameter.schema.format, last_segment, &parameter.name)?;
                 }
             }
         }
@@ -104,4 +121,26 @@ impl ValidateRequest for RequestData {
     fn body(&self, _: &OpenAPI) -> Result<()> {
         Ok(())
     }
+}
+
+fn validate_format(format: &Format, value: &str, key: &str) -> Result<()> {
+    match format {
+        Format::UUID => {
+            uuid::Uuid::parse_str(value).map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid UUID format for query parameter '{}': '{}'",
+                    key,
+                    value
+                )
+            })?;
+        }
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Unsupported format '{:?}' for query parameter '{}'",
+                format,
+                key
+            ));
+        }
+    }
+    Ok(())
 }

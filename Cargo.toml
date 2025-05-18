@@ -13,3 +13,4 @@ serde_yaml = "0.9"
 axum = "0.7"
 anyhow = "1.0"
 uuid = { version = "1", features = ["v4"] }
+url = "2"
