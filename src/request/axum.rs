@@ -19,6 +19,7 @@ use crate::request::validator::ValidateRequest;
 use anyhow::{Context, Result};
 use axum::body::{Body, Bytes};
 use axum::http::Request;
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
@@ -26,7 +27,7 @@ use std::str::FromStr;
 pub struct RequestData {
     pub path: String,
     pub inner: Request<Body>,
-    pub body: Bytes,
+    pub body: Option<Bytes>,
 }
 
 impl ValidateRequest for RequestData {
@@ -152,6 +153,9 @@ impl ValidateRequest for RequestData {
     }
 
     fn body(&self, _: &OpenAPI) -> Result<()> {
+        if let Some(body) = &self.body {
+            let _: HashMap<String, Value> = serde_json::from_slice(body)?;
+        }
         Ok(())
     }
 }

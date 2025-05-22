@@ -493,6 +493,7 @@ dependencies = [
  "anyhow",
  "axum",
  "serde",
+ "serde_json",
  "serde_yaml",
  "url",
  "uuid",

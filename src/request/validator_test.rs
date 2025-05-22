@@ -85,7 +85,7 @@ paths:
                     .uri(uri)
                     .body(axum::body::Body::empty())
                     .unwrap(),
-                body: axum::body::Bytes::new(),
+                body: None,
             }
         }
 
