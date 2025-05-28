@@ -152,10 +152,54 @@ impl ValidateRequest for RequestData {
         Ok(())
     }
 
-    fn body(&self, _: &OpenAPI) -> Result<()> {
-        if let Some(body) = &self.body {
-            let _: HashMap<String, Value> = serde_json::from_slice(body)?;
+    fn body(&self, open_api: &OpenAPI) -> Result<()> {
+        let path = open_api
+            .paths
+            .get(self.path.as_str())
+            .context("Path not found")?;
+
+        let path_base = path
+            .get(&Method::Post)
+            .context("Post method not defined for this path")?;
+
+        if let Some(request) = &path_base.request {
+            let map = &request.content;
+
+            if let Some(body) = &self.body {
+                let request_fields: HashMap<String, Value> = serde_json::from_slice(body)?;
+
+                for (key, value) in map {
+                    if let Some(field) = request_fields.get(key) {
+                        match value.schema.format {
+                            Format::UUID => {
+                                if let Some(v) = field.as_str() {
+                                    uuid::Uuid::parse_str(v).map_err(|_| {
+                                        anyhow::anyhow!(
+                                            "Invalid UUID format for query parameter '{}': '{:?}'",
+                                            key,
+                                            value
+                                        )
+                                    })?;
+                                } else {
+                                    return Err(anyhow::anyhow!(
+                                        "Invalid UUID format for query parameter '{}'",
+                                        key
+                                    ));
+                                }
+                            }
+                            _ => {
+                                return Err(anyhow::anyhow!(
+                                    "Unsupported format '{:?}' for query parameter '{}'",
+                                    value.schema.format,
+                                    key
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
         }
+
         Ok(())
     }
 }
