@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use crate::model::parse;
 use crate::model::parse::{Format, In, Method, OpenAPI};
 use crate::request::validator::ValidateRequest;
 use anyhow::{Context, Result};
@@ -153,49 +154,48 @@ impl ValidateRequest for RequestData {
     }
 
     fn body(&self, open_api: &OpenAPI) -> Result<()> {
+        let body = self
+            .body
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Missing body"))?;
         let path = open_api
             .paths
             .get(self.path.as_str())
             .context("Path not found")?;
-
         let path_base = path
             .get(&Method::Post)
             .context("Post method not defined for this path")?;
 
         if let Some(request) = &path_base.request {
-            let map = &request.content;
+            let request_fields: HashMap<String, Value> = serde_json::from_slice(body)?;
+            let refs = collect_schema_refs(&request.content);
 
-            if let Some(body) = &self.body {
-                let request_fields: HashMap<String, Value> = serde_json::from_slice(body)?;
+            for (key, media_type) in &request.content {
+                if let Some(field) = request_fields.get(key) {
+                    validate_field_format(key, field, media_type.schema.format.clone())?;
+                }
+            }
 
-                for (key, value) in map {
-                    if let Some(field) = request_fields.get(key) {
-                        match value.schema.format {
-                            Format::UUID => {
-                                if let Some(v) = field.as_str() {
-                                    uuid::Uuid::parse_str(v).map_err(|_| {
-                                        anyhow::anyhow!(
-                                            "Invalid UUID format for query parameter '{}': '{:?}'",
-                                            key,
-                                            value
-                                        )
-                                    })?;
-                                } else {
-                                    return Err(anyhow::anyhow!(
-                                        "Invalid UUID format for query parameter '{}'",
-                                        key
-                                    ));
-                                }
-                            }
-                            _ => {
-                                return Err(anyhow::anyhow!(
-                                    "Unsupported format '{:?}' for query parameter '{}'",
-                                    value.schema.format,
-                                    key
-                                ));
-                            }
+            let mut requireds = HashSet::new();
+
+            if let Some(components) = &open_api.components {
+                for schema_ref in &refs {
+                    if let Some(schema) = components.schemas.get(*schema_ref) {
+                        requireds.extend(schema.required.iter().cloned());
+
+                        if let Some(properties) = &schema.properties {
+                            validate_schema_properties(&request_fields, properties)?;
                         }
                     }
+                }
+            }
+
+            for key in &requireds {
+                if !request_fields.contains_key(key) {
+                    return Err(anyhow::anyhow!(
+                        "Missing required query parameter: '{}'",
+                        key
+                    ));
                 }
             }
         }
@@ -221,6 +221,59 @@ fn validate_format(format: &Format, value: &str, key: &str) -> Result<()> {
                 format,
                 key
             ));
+        }
+    }
+    Ok(())
+}
+
+fn collect_schema_refs(content: &HashMap<String, parse::BaseContent>) -> Vec<&str> {
+    let mut refs = Vec::new();
+    for media_type in content.values() {
+        if let Some(r) = &media_type.schema._ref {
+            refs.push(r.as_str());
+        }
+        if let Some(one_of) = &media_type.schema.one_of {
+            refs.extend(one_of.iter().filter_map(|s| s._ref.as_deref()));
+        }
+        if let Some(all_of) = &media_type.schema.all_of {
+            refs.extend(all_of.iter().filter_map(|s| s._ref.as_deref()));
+        }
+    }
+    refs
+}
+
+fn validate_field_format(key: &str, value: &Value, format: Format) -> Result<()> {
+    match format {
+        Format::UUID => {
+            let str_val = value.as_str().ok_or_else(|| {
+                anyhow::anyhow!("Invalid UUID format for query parameter '{}'", key)
+            })?;
+            uuid::Uuid::parse_str(str_val).map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid UUID format for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                )
+            })?;
+        }
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Unsupported format '{:?}' for query parameter '{}'",
+                format,
+                key
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_schema_properties(
+    request_fields: &HashMap<String, Value>,
+    properties: &HashMap<String, parse::Properties>,
+) -> Result<()> {
+    for (key, prop) in properties {
+        if let Some(value) = request_fields.get(key) {
+            validate_field_format(key, value, prop.format.clone())?;
         }
     }
     Ok(())
