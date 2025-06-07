@@ -19,11 +19,10 @@
 mod tests {
     use crate::model::parse::OpenAPI;
     use crate::request;
+    use axum::body::Bytes;
 
     #[test]
-
     fn test_uuid_path_validation() {
-        // YAML 示例配置
         let content = r#"
 openapi: 3.1.0
 info:
@@ -36,22 +35,11 @@ components:
   schemas:
     ExampleResponse:
       properties:
-        result:
-          type: object
-          description: example.
-          properties:
-            uuid:
-              type: string
-              description: The UUID for this example.
-              format: uuid
-              example: 00000000-0000-0000-0000-000000000000
-            count:
-              type: integer
-              description: example count.
-              example: 1
-              minimum: 0
-          required:
-            - uuid
+        uuid:
+          type: string
+          description: The UUID for this example.
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
 
 security: [ ]
 
@@ -103,6 +91,77 @@ paths:
                 .validator(make_request("/example/00000000"))
                 .is_err(),
             "Invalid UUID should fail validation"
+        );
+    }
+
+    #[test]
+    fn test_uuid_body_validation() {
+        let content = r#"
+openapi: 3.1.0
+info:
+  title: Example API
+  description: API definitions for example
+  version: '0.0.1'
+  x-file-identifier: example
+
+components:
+  schemas:
+    ExampleRequest:
+      type: object
+      properties:
+        uuid:
+          type: string
+          description: The UUID for this example.
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+      required:
+        - uuid
+    ExampleResponse:
+      properties:
+        uuid:
+          type: string
+          description: The UUID for this example.
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+
+security: [ ]
+
+paths:
+  /example:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+                $ref: '#/components/schemas/ExampleRequest'
+      responses:
+        '200':
+          description: Get a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+"#;
+
+        let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
+
+        let data = request::axum::RequestData {
+            path: "/example".to_string(),
+            inner: axum::http::Request::builder()
+                .method("POST")
+                .uri("/example")
+                .body(axum::body::Body::from(
+                    r#"{"uuid": "00000000-0000-0000-0000-000000000000"}"#,
+                ))
+                .unwrap(),
+            body: Some(Bytes::from(
+                r#"{"uuid": "00000000-0000-0000-0000-000000000000"}"#,
+            )),
+        };
+
+        assert!(
+            openapi.validator(data).is_ok(),
+            "Valid body should pass validation"
         );
     }
 }

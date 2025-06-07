@@ -56,6 +56,9 @@ impl OpenAPI {
         if valid.path(self).is_err() {
             return Err("Path validation failed".to_string());
         }
+        if valid.body(self).is_err() {
+            return Err("Body validation failed".to_string());
+        }
         Ok(())
     }
 }

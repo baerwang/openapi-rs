@@ -134,26 +134,28 @@ impl ValidateRequest for RequestData {
             .get(self.path.as_str())
             .context("Path not found")?;
 
-        let path_base = path
-            .get(&Method::Get)
-            .context("GET method not defined for this path")?;
+        if let Some(path_base) = path.get(&Method::Get) {
+            let uri = self.inner.uri();
 
-        let uri = self.inner.uri();
-
-        if let Some(parameters) = &path_base.parameters {
-            if let Some(last_segment) = uri.path().rsplit('/').find(|s| !s.is_empty()) {
-                for parameter in parameters {
-                    if parameter._in != In::Path {
-                        continue;
+            if let Some(parameters) = &path_base.parameters {
+                if let Some(last_segment) = uri.path().rsplit('/').find(|s| !s.is_empty()) {
+                    for parameter in parameters {
+                        if parameter._in != In::Path {
+                            continue;
+                        }
+                        validate_format(&parameter.schema.format, last_segment, &parameter.name)?;
                     }
-                    validate_format(&parameter.schema.format, last_segment, &parameter.name)?;
                 }
             }
         }
+
         Ok(())
     }
 
     fn body(&self, open_api: &OpenAPI) -> Result<()> {
+        if self.body.is_none() {
+            return Ok(());
+        }
         let body = self
             .body
             .as_ref()
@@ -179,13 +181,20 @@ impl ValidateRequest for RequestData {
             let mut requireds = HashSet::new();
 
             if let Some(components) = &open_api.components {
-                for schema_ref in &refs {
-                    if let Some(schema) = components.schemas.get(*schema_ref) {
-                        requireds.extend(schema.required.iter().cloned());
-
-                        if let Some(properties) = &schema.properties {
-                            validate_schema_properties(&request_fields, properties)?;
+                for schema_ref in refs {
+                    if let Some(last_slash_pos) = schema_ref.rfind('/') {
+                        let filename = &schema_ref[last_slash_pos + 1..];
+                        if let Some(schema) = components.schemas.get(filename) {
+                            requireds.extend(schema.required.iter().cloned());
+                            if let Some(properties) = &schema.properties {
+                                validate_schema_properties(&request_fields, properties)?;
+                            }
                         }
+                    } else {
+                        return Err(anyhow::anyhow!(
+                            "Invalid schema reference: '{}'",
+                            schema_ref
+                        ));
                     }
                 }
             }
