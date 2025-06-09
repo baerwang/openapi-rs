@@ -145,22 +145,32 @@ paths:
 
         let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
 
-        let data = request::axum::RequestData {
-            path: "/example".to_string(),
-            inner: axum::http::Request::builder()
-                .method("POST")
-                .uri("/example")
-                .body(axum::body::Body::from(
-                    r#"{"uuid": "00000000-0000-0000-0000-000000000000"}"#,
-                ))
-                .unwrap(),
-            body: Some(Bytes::from(
-                r#"{"uuid": "00000000-0000-0000-0000-000000000000"}"#,
-            )),
-        };
+        fn make_request(value: &str) -> request::axum::RequestData {
+            request::axum::RequestData {
+                path: "/example".to_string(),
+                inner: axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/example")
+                    .body(axum::body::Body::from(format!(
+                        "{{\"uuid\":\"{}\"}}",
+                        value
+                    )))
+                    .unwrap(),
+                body: Some(Bytes::from(format!("{{\"uuid\":\"{}\"}}", value))),
+            }
+        }
 
         assert!(
-            openapi.validator(data).is_ok(),
+            openapi
+                .validator(make_request("00000000-0000-0000-0000-000000000000"))
+                .is_ok(),
+            "Valid body should pass validation"
+        );
+
+        assert!(
+            !openapi
+                .validator(make_request("00000000-0000-0000-0000-xxxx"))
+                .is_ok(),
             "Valid body should pass validation"
         );
     }
