@@ -20,8 +20,10 @@ use crate::request::validator::ValidateRequest;
 use anyhow::{Context, Result};
 use axum::body::{Body, Bytes};
 use axum::http::Request;
+use chrono::{DateTime, NaiveDate, NaiveTime};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
 #[allow(dead_code)]
@@ -75,7 +77,11 @@ impl ValidateRequest for RequestData {
                 }
 
                 if let Some(value) = query_pairs.get(&parameter.name) {
-                    validate_format(&parameter.schema.format, value, &parameter.name)?;
+                    validate_field_format(
+                        &parameter.name,
+                        &Value::from(value.as_str()),
+                        parameter.schema.format.clone(),
+                    )?;
                 }
 
                 let mut refs = Vec::new();
@@ -106,7 +112,11 @@ impl ValidateRequest for RequestData {
                             if let Some(properties) = &schema.properties {
                                 for (key, prop) in properties {
                                     if let Some(value) = query_pairs.get(key) {
-                                        validate_format(&prop.format, value, key)?;
+                                        validate_field_format(
+                                            key,
+                                            &Value::from(value.as_str()),
+                                            prop.format.clone(),
+                                        )?;
                                     }
                                 }
                             }
@@ -143,7 +153,11 @@ impl ValidateRequest for RequestData {
                         if parameter._in != In::Path {
                             continue;
                         }
-                        validate_format(&parameter.schema.format, last_segment, &parameter.name)?;
+                        validate_field_format(
+                            &parameter.name,
+                            &Value::from(last_segment),
+                            parameter.schema.format.clone(),
+                        )?;
                     }
                 }
             }
@@ -213,28 +227,6 @@ impl ValidateRequest for RequestData {
     }
 }
 
-fn validate_format(format: &Format, value: &str, key: &str) -> Result<()> {
-    match format {
-        Format::UUID => {
-            uuid::Uuid::parse_str(value).map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid UUID format for query parameter '{}': '{}'",
-                    key,
-                    value
-                )
-            })?;
-        }
-        _ => {
-            return Err(anyhow::anyhow!(
-                "Unsupported format '{:?}' for query parameter '{}'",
-                format,
-                key
-            ));
-        }
-    }
-    Ok(())
-}
-
 fn collect_schema_refs(content: &HashMap<String, parse::BaseContent>) -> Vec<&str> {
     let mut refs = Vec::new();
     for media_type in content.values() {
@@ -252,14 +244,68 @@ fn collect_schema_refs(content: &HashMap<String, parse::BaseContent>) -> Vec<&st
 }
 
 fn validate_field_format(key: &str, value: &Value, format: Format) -> Result<()> {
+    let str_val = value
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("this value must string '{}'", key))?;
     match format {
-        Format::UUID => {
-            let str_val = value.as_str().ok_or_else(|| {
-                anyhow::anyhow!("Invalid UUID format for query parameter '{}'", key)
+        Format::Email => {
+            if !validator::validate_email(str_val) {
+                return Err(anyhow::anyhow!(
+                    "Invalid email format for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                ));
+            }
+        }
+        Format::Time => {
+            NaiveTime::parse_from_str(str_val, "%H:%M:%S").map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid time format for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                )
             })?;
+        }
+        Format::Date => {
+            NaiveDate::parse_from_str(str_val, "%Y-%m-%d").map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid RFC3339 full-date for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                )
+            })?;
+        }
+        Format::DateTime => {
+            DateTime::parse_from_rfc3339(str_val).map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid datetime format for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                )
+            })?;
+        }
+        Format::UUID => {
             uuid::Uuid::parse_str(str_val).map_err(|_| {
                 anyhow::anyhow!(
                     "Invalid UUID format for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                )
+            })?;
+        }
+        Format::IPV4 => {
+            str_val.parse::<Ipv4Addr>().map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid IPv4 format for query parameter '{}': '{}'",
+                    key,
+                    str_val
+                )
+            })?;
+        }
+        Format::IPV6 => {
+            str_val.parse::<Ipv6Addr>().map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid IPv6 format for query parameter '{}': '{}'",
                     key,
                     str_val
                 )
