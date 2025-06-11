@@ -95,6 +95,80 @@ paths:
     }
 
     #[test]
+    fn test_uuid_query_validation() {
+        let content = r#"
+openapi: 3.1.0
+info:
+  title: Example API
+  description: API definitions for example
+  version: '0.0.1'
+  x-file-identifier: example
+
+components:
+  schemas:
+    ExampleResponse:
+      properties:
+        uuid:
+          type: string
+          description: The UUID for this example.
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+
+security: [ ]
+
+paths:
+  /example:
+    get:
+      summary: Get a example
+      description: Get a example
+      operationId: get-a-example
+      parameters:
+        - name: uuid
+          description: UUID of the example
+          in: query
+          schema:
+            type: string
+            format: uuid
+            example: "00000000-0000-0000-0000-000000000000"
+      responses:
+        '200':
+          description: Get a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+"#;
+
+        let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
+
+        fn make_request(uuid: &str) -> request::axum::RequestData {
+            request::axum::RequestData {
+                path: "/example".to_string(),
+                inner: axum::http::Request::builder()
+                    .method("GET")
+                    .uri(format!("/example?uuid={}", uuid))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+                body: None,
+            }
+        }
+
+        assert!(
+            openapi
+                .validator(make_request("00000000-0000-0000-0000-000000000000"))
+                .is_ok(),
+            "Valid body should pass validation"
+        );
+
+        assert!(
+            !openapi
+                .validator(make_request("00000000-0000-0000-0000-xxxx"))
+                .is_ok(),
+            "Valid body should pass validation"
+        );
+    }
+
+    #[test]
     fn test_uuid_body_validation() {
         let content = r#"
 openapi: 3.1.0

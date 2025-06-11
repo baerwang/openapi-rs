@@ -59,64 +59,62 @@ impl ValidateRequest for RequestData {
             .get(self.path.as_str())
             .context("Path not found")?;
 
-        let path_base = path
-            .get(&Method::Get)
-            .context("GET method not defined for this path")?;
+        if let Some(path_base) = path.get(&Method::Get) {
+            let query_str = self.inner.uri().query().unwrap_or_default();
+            let query_pairs: HashMap<_, _> = url::form_urlencoded::parse(query_str.as_bytes())
+                .into_owned()
+                .collect();
 
-        let query_str = self.inner.uri().query().unwrap_or_default();
-        let query_pairs: HashMap<_, _> = url::form_urlencoded::parse(query_str.as_bytes())
-            .into_owned()
-            .collect();
+            let mut requireds: HashSet<String> = HashSet::new();
 
-        let mut requireds: HashSet<String> = HashSet::new();
-
-        if let Some(parameters) = &path_base.parameters {
-            for parameter in parameters {
-                if parameter._in != In::Query {
-                    continue;
-                }
-
-                if let Some(value) = query_pairs.get(&parameter.name) {
-                    validate_field_format(
-                        &parameter.name,
-                        &Value::from(value.as_str()),
-                        parameter.schema.format.clone(),
-                    )?;
-                }
-
-                let mut refs = Vec::new();
-                if let Some(r) = &parameter.schema._ref {
-                    refs.push(r.as_str());
-                }
-                if let Some(one_of) = &parameter.schema.one_of {
-                    for s in one_of {
-                        if let Some(r) = &s._ref {
-                            refs.push(r.as_str());
-                        }
+            if let Some(parameters) = &path_base.parameters {
+                for parameter in parameters {
+                    if parameter._in != In::Query {
+                        continue;
                     }
-                }
-                if let Some(all_of) = &parameter.schema.all_of {
-                    for s in all_of {
-                        if let Some(r) = &s._ref {
-                            refs.push(r.as_str());
-                        }
-                    }
-                }
 
-                for schema_ref in refs {
-                    if let Some(components) = &open_api.components {
-                        if let Some(schema) = components.schemas.get(schema_ref) {
-                            if !schema.required.is_empty() {
-                                requireds.extend(schema.required.clone());
+                    if let Some(value) = query_pairs.get(&parameter.name) {
+                        validate_field_format(
+                            &parameter.name,
+                            &Value::from(value.as_str()),
+                            parameter.schema.format.clone(),
+                        )?;
+                    }
+
+                    let mut refs = Vec::new();
+                    if let Some(r) = &parameter.schema._ref {
+                        refs.push(r.as_str());
+                    }
+                    if let Some(one_of) = &parameter.schema.one_of {
+                        for s in one_of {
+                            if let Some(r) = &s._ref {
+                                refs.push(r.as_str());
                             }
-                            if let Some(properties) = &schema.properties {
-                                for (key, prop) in properties {
-                                    if let Some(value) = query_pairs.get(key) {
-                                        validate_field_format(
-                                            key,
-                                            &Value::from(value.as_str()),
-                                            prop.format.clone(),
-                                        )?;
+                        }
+                    }
+                    if let Some(all_of) = &parameter.schema.all_of {
+                        for s in all_of {
+                            if let Some(r) = &s._ref {
+                                refs.push(r.as_str());
+                            }
+                        }
+                    }
+
+                    for schema_ref in refs {
+                        if let Some(components) = &open_api.components {
+                            if let Some(schema) = components.schemas.get(schema_ref) {
+                                if !schema.required.is_empty() {
+                                    requireds.extend(schema.required.clone());
+                                }
+                                if let Some(properties) = &schema.properties {
+                                    for (key, prop) in properties {
+                                        if let Some(value) = query_pairs.get(key) {
+                                            validate_field_format(
+                                                key,
+                                                &Value::from(value.as_str()),
+                                                prop.format.clone(),
+                                            )?;
+                                        }
                                     }
                                 }
                             }
@@ -124,14 +122,14 @@ impl ValidateRequest for RequestData {
                     }
                 }
             }
-        }
 
-        for key in &requireds {
-            if !query_pairs.contains_key(key) {
-                return Err(anyhow::anyhow!(
-                    "Missing required query parameter: '{}'",
-                    key
-                ));
+            for key in &requireds {
+                if !query_pairs.contains_key(key) {
+                    return Err(anyhow::anyhow!(
+                        "Missing required query parameter: '{}'",
+                        key
+                    ));
+                }
             }
         }
 
