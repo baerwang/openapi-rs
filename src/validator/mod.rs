@@ -14,6 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+mod validator_test;
+
 use crate::model::parse;
 use crate::model::parse::{Format, In, Method, OpenAPI};
 use anyhow::{Context, Result};
@@ -31,7 +34,7 @@ pub trait ValidateRequest {
     fn body(&self, _: &OpenAPI) -> Result<()>;
 }
 
-pub fn common_method(path: &str, method: &str, open_api: &OpenAPI) -> Result<()> {
+pub fn method(path: &str, method: &str, open_api: &OpenAPI) -> Result<()> {
     let path = open_api.paths.get(path).context("Path not found")?;
 
     let method = Method::from_str(method).map_err(|e| anyhow::anyhow!(e))?;
@@ -43,7 +46,7 @@ pub fn common_method(path: &str, method: &str, open_api: &OpenAPI) -> Result<()>
     Ok(())
 }
 
-pub fn common_path(path: &str, uri: &str, open_api: &OpenAPI) -> Result<()> {
+pub fn path(path: &str, uri: &str, open_api: &OpenAPI) -> Result<()> {
     let path = open_api.paths.get(path).context("Path not found")?;
 
     if let Some(path_base) = path.get(&Method::Get) {
@@ -64,11 +67,7 @@ pub fn common_path(path: &str, uri: &str, open_api: &OpenAPI) -> Result<()> {
     Ok(())
 }
 
-pub fn common_query(
-    path: &str,
-    query_pairs: HashMap<String, String>,
-    open_api: &OpenAPI,
-) -> Result<()> {
+pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAPI) -> Result<()> {
     let path = open_api.paths.get(path).context("Path not found")?;
 
     if let Some(path_base) = path.get(&Method::Get) {
@@ -142,11 +141,7 @@ pub fn common_query(
     Ok(())
 }
 
-pub fn common_body(
-    path: &str,
-    request_fields: HashMap<String, Value>,
-    open_api: &OpenAPI,
-) -> Result<()> {
+pub fn body(path: &str, request_fields: HashMap<String, Value>, open_api: &OpenAPI) -> Result<()> {
     let path = open_api.paths.get(path).context("Path not found")?;
 
     if let Some(path_base) = path.get(&Method::Post) {

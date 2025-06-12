@@ -15,8 +15,7 @@
  * limitations under the License.
  */
 use crate::model::parse::OpenAPI;
-use crate::request;
-use crate::request::validator::{common_method, ValidateRequest};
+use crate::validator::{body, method, path, query, ValidateRequest};
 use anyhow::Result;
 use axum::body::{Body, Bytes};
 use axum::http::Request;
@@ -36,7 +35,7 @@ impl ValidateRequest for RequestData {
     }
 
     fn method(&self, open_api: &OpenAPI) -> Result<()> {
-        common_method(self.path.as_str(), self.inner.method().as_str(), open_api)
+        method(self.path.as_str(), self.inner.method().as_str(), open_api)
     }
 
     fn query(&self, open_api: &OpenAPI) -> Result<()> {
@@ -46,12 +45,12 @@ impl ValidateRequest for RequestData {
             .into_owned()
             .collect();
 
-        request::validator::common_query(self.path.as_str(), query_pairs, open_api)
+        query(self.path.as_str(), query_pairs, open_api)
     }
 
     fn path(&self, open_api: &OpenAPI) -> Result<()> {
         if let Some(last_segment) = self.inner.uri().path().rsplit('/').find(|s| !s.is_empty()) {
-            request::validator::common_path(self.path.as_str(), last_segment, open_api)?
+            path(self.path.as_str(), last_segment, open_api)?
         }
 
         Ok(())
@@ -61,11 +60,11 @@ impl ValidateRequest for RequestData {
         if self.body.is_none() {
             return Ok(());
         }
-        let body = self
+        let self_body = self
             .body
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Missing body"))?;
-        let request_fields: HashMap<String, Value> = serde_json::from_slice(body)?;
-        request::validator::common_body(self.path.as_str(), request_fields, open_api)
+        let request_fields: HashMap<String, Value> = serde_json::from_slice(self_body)?;
+        body(self.path.as_str(), request_fields, open_api)
     }
 }

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-use crate::request::validator::ValidateRequest;
+use crate::validator::ValidateRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
