@@ -79,13 +79,11 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
                 }
 
                 if let Some(value) = query_pairs.get(&parameter.name) {
-                    if parameter.required {
-                        if value.is_empty() {
-                            return Err(anyhow::anyhow!(
-                                "This field [{}] is required",
-                                parameter.name
-                            ));
-                        }
+                    if parameter.required && value.is_empty() {
+                        return Err(anyhow::anyhow!(
+                            "This field [{}] is required",
+                            parameter.name
+                        ));
                     }
 
                     validate_field_format(
