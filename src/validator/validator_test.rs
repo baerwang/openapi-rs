@@ -212,7 +212,7 @@ paths:
                 $ref: '#/components/schemas/ExampleRequest'
       responses:
         '200':
-          description: Get a Example response
+          description: Post a Example response
           content:
             application/json:
               schema:
@@ -249,6 +249,112 @@ paths:
                 .is_ok(),
             "Valid body should pass validation"
         );
+    }
+
+    #[test]
+    fn test_query_required_validation() {
+        let content = r#"
+openapi: 3.1.0
+info:
+  title: Example API
+  description: API definitions for example
+  version: '0.0.1'
+  x-file-identifier: example
+
+components:
+  schemas:
+    ExampleResponse:
+      properties:
+        uuid:
+          type: string
+          description: The UUID for this example.
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+
+security: [ ]
+
+paths:
+  /example:
+    get:
+      summary: Get a example
+      description: Get a example
+      operationId: get-a-example
+      parameters:
+        - name: uuid
+          description: UUID of the example
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "00000000-0000-0000-0000-000000000000"
+        - name: name
+          description:  Name of the example
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "example"
+        - name: age
+          description: Age of the example
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Get a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+"#;
+
+        let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
+
+        fn make_request(uri: &str) -> request::axum::RequestData {
+            request::axum::RequestData {
+                path: "/example".to_string(),
+                inner: axum::http::Request::builder()
+                    .method("GET")
+                    .uri(uri)
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+                body: None,
+            }
+        }
+
+        struct Tests {
+            value: &'static str,
+            assert: bool,
+        }
+
+        let tests: Vec<Tests> = vec![
+            Tests {
+                value: "/example?uuid=00000000-0000-0000-0000-000000000000&name=example",
+                assert: true,
+            },
+            Tests {
+                value: "/example?uuid=00000000-0000-0000-0000-000000000000&name=example&age=1",
+                assert: true,
+            },
+            Tests {
+                value: "/example?uuid=00000000-0000-0000-0000-000000000000&age=1",
+                assert: false,
+            },
+            Tests {
+                value: "/example?uuid=00000000-0000-0000-0000-000000000000",
+                assert: false,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                openapi.validator(make_request(test.value)).is_ok(),
+                test.assert
+            );
+        }
     }
 
     #[test]

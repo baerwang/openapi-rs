@@ -79,14 +79,29 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
                 }
 
                 if let Some(value) = query_pairs.get(&parameter.name) {
+                    if parameter.required {
+                        if value.is_empty() {
+                            return Err(anyhow::anyhow!(
+                                "This field [{}] is required",
+                                parameter.name
+                            ));
+                        }
+                    }
+
                     validate_field_format(
                         &parameter.name,
                         &Value::from(value.as_str()),
                         parameter.schema.format.clone(),
                     )?;
+                } else if parameter.required {
+                    return Err(anyhow::anyhow!(
+                        "This field [{}] is required",
+                        parameter.name
+                    ));
                 }
 
                 let mut refs = Vec::new();
+
                 if let Some(r) = &parameter.schema._ref {
                     refs.push(r.as_str());
                 }
@@ -257,6 +272,7 @@ fn validate_field_format(key: &str, value: &Value, format: Format) -> Result<()>
                 )
             })?;
         }
+        Format::Undefined => {}
         _ => {
             return Err(anyhow::anyhow!(
                 "Unsupported format '{:?}' for query parameter '{}'",
