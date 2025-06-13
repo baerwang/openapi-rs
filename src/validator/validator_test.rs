@@ -79,21 +79,28 @@ paths:
             }
         }
 
-        assert!(
-            openapi
-                .validator(make_request(
-                    "/example/00000000-0000-0000-0000-000000000000"
-                ))
-                .is_ok(),
-            "Valid UUID should pass validation"
-        );
+        struct Tests {
+            value: &'static str,
+            assert: bool,
+        }
 
-        assert!(
-            openapi
-                .validator(make_request("/example/00000000"))
-                .is_err(),
-            "Invalid UUID should fail validation"
-        );
+        let tests: Vec<Tests> = vec![
+            Tests {
+                value: "/example/00000000-0000-0000-0000-000000000000",
+                assert: true,
+            },
+            Tests {
+                value: "/example/00000000",
+                assert: false,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                openapi.validator(make_request(test.value)).is_ok(),
+                test.assert
+            );
+        }
     }
 
     #[test]
@@ -155,19 +162,28 @@ paths:
             }
         }
 
-        assert!(
-            openapi
-                .validator(make_request("00000000-0000-0000-0000-000000000000"))
-                .is_ok(),
-            "Valid body should pass validation"
-        );
+        struct Tests {
+            value: &'static str,
+            assert: bool,
+        }
 
-        assert!(
-            !openapi
-                .validator(make_request("00000000-0000-0000-0000-xxxx"))
-                .is_ok(),
-            "Valid body should pass validation"
-        );
+        let tests: Vec<Tests> = vec![
+            Tests {
+                value: "00000000-0000-0000-0000-000000000000",
+                assert: true,
+            },
+            Tests {
+                value: "00000000-0000-0000-0000-xxxx",
+                assert: false,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                openapi.validator(make_request(test.value)).is_ok(),
+                test.assert
+            );
+        }
     }
 
     #[test]
@@ -236,19 +252,28 @@ paths:
             }
         }
 
-        assert!(
-            openapi
-                .validator(make_request("00000000-0000-0000-0000-000000000000"))
-                .is_ok(),
-            "Valid body should pass validation"
-        );
+        struct Tests {
+            value: &'static str,
+            assert: bool,
+        }
 
-        assert!(
-            !openapi
-                .validator(make_request("00000000-0000-0000-0000-xxxx"))
-                .is_ok(),
-            "Valid body should pass validation"
-        );
+        let tests: Vec<Tests> = vec![
+            Tests {
+                value: "00000000-0000-0000-0000-000000000000",
+                assert: true,
+            },
+            Tests {
+                value: "00000000-0000-0000-0000-xxxx",
+                assert: false,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                openapi.validator(make_request(test.value)).is_ok(),
+                test.assert
+            );
+        }
     }
 
     #[test]
@@ -358,7 +383,7 @@ paths:
     }
 
     #[test]
-    fn format_types() {
+    fn format_types_validation() {
         fn t(v: &str, format: Format) -> bool {
             validate_field_format("", &Value::from(v), Some(format)).is_ok()
         }
