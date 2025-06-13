@@ -17,9 +17,11 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::model::parse::OpenAPI;
+    use crate::model::parse::{Format, OpenAPI};
     use crate::request;
+    use crate::validator::validate_field_format;
     use axum::body::Bytes;
+    use serde_json::Value;
 
     #[test]
     fn test_uuid_path_validation() {
@@ -247,5 +249,95 @@ paths:
                 .is_ok(),
             "Valid body should pass validation"
         );
+    }
+
+    #[test]
+    fn format_types() {
+        fn t(v: &str, format: Format) -> bool {
+            validate_field_format("", &Value::from(v), format).is_ok()
+        }
+
+        struct Tests {
+            f: Format,
+            value: &'static str,
+            assert: bool,
+        }
+
+        let tests: Vec<Tests> = vec![
+            Tests {
+                f: Format::Date,
+                value: "2025-01-32",
+                assert: false,
+            },
+            Tests {
+                f: Format::Email,
+                value: "e@example .com",
+                assert: false,
+            },
+            Tests {
+                f: Format::Time,
+                value: "00:00:61",
+                assert: false,
+            },
+            Tests {
+                f: Format::DateTime,
+                value: "2025-01-01T00:61:00Z",
+                assert: false,
+            },
+            Tests {
+                f: Format::UUID,
+                value: "00000000-0000-0000-0000-xxxx",
+                assert: false,
+            },
+            Tests {
+                f: Format::IPV4,
+                value: "127.0.0.x",
+                assert: false,
+            },
+            Tests {
+                f: Format::IPV6,
+                value: "example",
+                assert: false,
+            },
+            Tests {
+                f: Format::Email,
+                value: "a@example.com",
+                assert: true,
+            },
+            Tests {
+                f: Format::UUID,
+                value: "00000000-0000-0000-0000-000000000000",
+                assert: true,
+            },
+            Tests {
+                f: Format::Time,
+                value: "00:00:00",
+                assert: true,
+            },
+            Tests {
+                f: Format::Date,
+                value: "2025-01-01",
+                assert: true,
+            },
+            Tests {
+                f: Format::DateTime,
+                value: "2025-01-01T00:00:00Z",
+                assert: true,
+            },
+            Tests {
+                f: Format::IPV4,
+                value: "127.0.0.1",
+                assert: true,
+            },
+            Tests {
+                f: Format::IPV6,
+                value: "::",
+                assert: true,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(t(test.value, test.f), test.assert);
+        }
     }
 }
