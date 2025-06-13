@@ -80,7 +80,7 @@ mod tests {
         );
         assert_eq!(parameter._in, In::Path);
         assert_eq!(parameter.schema._type, Type::String);
-        assert_eq!(parameter.schema.format, Format::UUID);
+        assert_eq!(parameter.schema.format, Some(Format::UUID));
         assert_eq!(
             parameter.schema.example.clone().unwrap(),
             "00000000-0000-0000-0000-000000000000"
@@ -106,7 +106,6 @@ mod tests {
             "#/components/schemas/ExampleResponse"
         );
         assert_eq!(schema._type, Type::Undefined);
-        assert_eq!(schema.format, Format::Undefined);
         assert!(schema.example.is_none());
 
         Ok(())
@@ -259,7 +258,7 @@ paths:
             uuid.description.as_deref(),
             Some("The UUID for this example.")
         );
-        assert_eq!(uuid.format, Format::UUID);
+        assert_eq!(uuid.format, Some(Format::UUID));
         assert_eq!(
             uuid.example.clone().unwrap(),
             "00000000-0000-0000-0000-000000000000"
@@ -276,7 +275,7 @@ paths:
             .ok_or("Missing count")?;
         assert_eq!(count._type, Type::Integer);
         assert_eq!(count.description.as_deref(), Some("example count."));
-        assert_eq!(count.format, Format::Undefined);
+        assert_eq!(count.format, None);
         assert_eq!(count.example.clone().unwrap(), 1);
         assert_eq!(count.minimum, 0);
         assert_eq!(count.maximum, 1);
@@ -358,7 +357,7 @@ paths:
             uuid.description.as_deref(),
             Some("The UUID for this example.")
         );
-        assert_eq!(uuid.format, Format::UUID);
+        assert_eq!(uuid.format, Some(Format::UUID));
         assert_eq!(
             uuid.example.clone().unwrap(),
             "00000000-0000-0000-0000-000000000000"
@@ -501,7 +500,7 @@ paths:
             uuid.description.as_deref(),
             Some("The UUID for this example.")
         );
-        assert_eq!(uuid.format, Format::UUID);
+        assert_eq!(uuid.format, Some(Format::UUID));
         assert_eq!(
             uuid.example.clone().unwrap(),
             "00000000-0000-0000-0000-000000000000"
@@ -514,7 +513,7 @@ paths:
             multi_uuid.description.as_deref(),
             Some("The Multi UUID for this example.")
         );
-        assert_eq!(multi_uuid.format, Format::UUID);
+        assert_eq!(multi_uuid.format, Some(Format::UUID));
 
         // Check example value
         assert_eq!(

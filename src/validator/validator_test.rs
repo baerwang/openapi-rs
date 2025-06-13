@@ -360,7 +360,7 @@ paths:
     #[test]
     fn format_types() {
         fn t(v: &str, format: Format) -> bool {
-            validate_field_format("", &Value::from(v), format).is_ok()
+            validate_field_format("", &Value::from(v), Some(format)).is_ok()
         }
 
         struct Tests {

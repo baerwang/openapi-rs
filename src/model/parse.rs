@@ -114,8 +114,7 @@ pub struct Parameter {
 pub struct Schema {
     #[serde(rename = "type", default)]
     pub _type: Type,
-    #[serde(default)]
-    pub format: Format,
+    pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
     pub examples: Option<Vec<String>>,
     #[serde(rename = "$ref")]
@@ -180,8 +179,7 @@ pub struct Properties {
     #[serde(rename = "type", default)]
     pub _type: Type,
     pub description: Option<String>,
-    #[serde(default)]
-    pub format: Format,
+    pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
     #[serde(default)]
     pub minimum: i64,
@@ -255,7 +253,7 @@ pub enum In {
     Cookie,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all(deserialize = "lowercase"))]
 pub enum Format {
     URI,
@@ -273,6 +271,4 @@ pub enum Format {
     Password,
     #[serde(rename = "json-pointer")]
     JsonPointer,
-    #[default]
-    Undefined,
 }

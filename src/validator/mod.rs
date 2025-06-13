@@ -165,75 +165,43 @@ pub fn body(path: &str, request_fields: HashMap<String, Value>, open_api: &OpenA
     Ok(())
 }
 
-fn validate_field_format(key: &str, value: &Value, format: Format) -> Result<()> {
-    let str_val = value
-        .as_str()
-        .ok_or_else(|| anyhow::anyhow!("this value must string '{}'", key))?;
+fn validate_field_format(key: &str, value: &Value, format: Option<Format>) -> Result<()> {
+    let str_val = match value.as_str() {
+        Some(s) => s,
+        None => return Err(anyhow::anyhow!("this value must be string '{}'", key)),
+    };
     match format {
-        Format::Email => {
+        Some(Format::Email) => {
             if !validator::validate_email(str_val) {
-                return Err(anyhow::anyhow!(
-                    "Invalid email format for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                ));
+                return Err(format_error("Email", key, str_val));
             }
         }
-        Format::Time => {
-            NaiveTime::parse_from_str(str_val, "%H:%M:%S").map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid time format for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                )
-            })?;
+        Some(Format::Time) => {
+            NaiveTime::parse_from_str(str_val, "%H:%M:%S")
+                .map_err(|_| format_error("Time", key, str_val))?;
         }
-        Format::Date => {
-            NaiveDate::parse_from_str(str_val, "%Y-%m-%d").map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid RFC3339 full-date for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                )
-            })?;
+        Some(Format::Date) => {
+            NaiveDate::parse_from_str(str_val, "%Y-%m-%d")
+                .map_err(|_| format_error("Date", key, str_val))?;
         }
-        Format::DateTime => {
-            DateTime::parse_from_rfc3339(str_val).map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid datetime format for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                )
-            })?;
+        Some(Format::DateTime) => {
+            DateTime::parse_from_rfc3339(str_val)
+                .map_err(|_| format_error("DateTime", key, str_val))?;
         }
-        Format::UUID => {
-            uuid::Uuid::parse_str(str_val).map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid UUID format for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                )
-            })?;
+        Some(Format::UUID) => {
+            uuid::Uuid::parse_str(str_val).map_err(|_| format_error("UUID", key, str_val))?;
         }
-        Format::IPV4 => {
-            str_val.parse::<Ipv4Addr>().map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid IPv4 format for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                )
-            })?;
+        Some(Format::IPV4) => {
+            str_val
+                .parse::<Ipv4Addr>()
+                .map_err(|_| format_error("IPv4", key, str_val))?;
         }
-        Format::IPV6 => {
-            str_val.parse::<Ipv6Addr>().map_err(|_| {
-                anyhow::anyhow!(
-                    "Invalid IPv6 format for query parameter '{}': '{}'",
-                    key,
-                    str_val
-                )
-            })?;
+        Some(Format::IPV6) => {
+            str_val
+                .parse::<Ipv6Addr>()
+                .map_err(|_| format_error("IPV6", key, str_val))?;
         }
-        Format::Undefined => {}
+        None => {}
         _ => {
             return Err(anyhow::anyhow!(
                 "Unsupported format '{:?}' for query parameter '{}'",
@@ -243,6 +211,15 @@ fn validate_field_format(key: &str, value: &Value, format: Format) -> Result<()>
         }
     }
     Ok(())
+}
+
+fn format_error(kind: &str, key: &str, value: &str) -> anyhow::Error {
+    anyhow::anyhow!(
+        "Invalid {} format for query parameter '{}': '{}'",
+        kind,
+        key,
+        value
+    )
 }
 
 fn extract_required_and_validate_props(
