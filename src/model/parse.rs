@@ -35,33 +35,36 @@ pub struct OpenAPI {
     pub tags: Vec<String>,
 }
 
+macro_rules! require_non_empty {
+    ($field:expr, $msg:expr) => {
+        if $field.is_empty() {
+            return Err($msg.to_string());
+        }
+    };
+}
+
 impl OpenAPI {
     pub fn yaml(contents: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(contents)
     }
 
     pub fn validator(&self, valid: impl ValidateRequest) -> Result<(), String> {
-        if self.openapi.is_empty() {
-            return Err("OpenAPI version is required".to_string());
-        }
-        if self.info.title.is_empty() {
-            return Err("Title is required".to_string());
-        }
-        if self.info.version.is_empty() {
-            return Err("Version is required".to_string());
-        }
-        if self.paths.is_empty() {
-            return Err("Paths are required".to_string());
-        }
-        if valid.path(self).is_err() {
-            return Err("Path validation failed".to_string());
-        }
-        if valid.query(self).is_err() {
-            return Err("Query validation failed".to_string());
-        }
-        if valid.body(self).is_err() {
-            return Err("Body validation failed".to_string());
-        }
+        require_non_empty!(self.openapi, "OpenAPI version is required");
+        require_non_empty!(self.info.title, "Title is required");
+        require_non_empty!(self.info.version, "Version is required");
+        require_non_empty!(self.paths, "Paths are required");
+        valid
+            .method(self)
+            .map_err(|e| format!("Method validation failed: {}", e))?;
+        valid
+            .path(self)
+            .map_err(|e| format!("Path validation failed: {}", e))?;
+        valid
+            .query(self)
+            .map_err(|e| format!("Query validation failed: {}", e))?;
+        valid
+            .body(self)
+            .map_err(|e| format!("Body validation failed: {}", e))?;
         Ok(())
     }
 }
