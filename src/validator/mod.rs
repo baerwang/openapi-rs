@@ -18,8 +18,9 @@
 mod validator_test;
 
 use crate::model::parse;
-use crate::model::parse::{ComponentsObject, Format, In, Method, OpenAPI};
+use crate::model::parse::{ComponentsObject, Format, In, Method, OpenAPI, Type};
 use anyhow::{anyhow, Context, Result};
+use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -86,7 +87,7 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
 
         match query_pairs.get(&parameter.name) {
             Some(value) => {
-                if parameter.required && value.is_empty() {
+                if parameter.required && value.trim().is_empty() {
                     return Err(anyhow!("This field [{}] is required", parameter.name));
                 }
 
@@ -133,6 +134,7 @@ pub fn body(path: &str, request_fields: HashMap<String, Value>, open_api: &OpenA
     if let Some(request) = request {
         for (key, media_type) in &request.content {
             if let Some(field) = request_fields.get(key) {
+                validate_field_type(key, field, media_type.schema._type.clone())?;
                 validate_field_format(key, field, media_type.schema.format.clone())?;
             }
         }
@@ -213,6 +215,71 @@ fn validate_field_format(key: &str, value: &Value, format: Option<Format>) -> Re
     Ok(())
 }
 
+fn validate_field_type(key: &str, value: &Value, field_type: Option<Type>) -> Result<()> {
+    use Type::*;
+
+    match field_type {
+        Some(Object) => {
+            if !value.is_object() {
+                return Err(anyhow!("the value of '{}' must be an Object", key));
+            }
+        }
+        Some(String) => {
+            if !value.is_string() {
+                return Err(anyhow!("the value of '{}' must be a String", key));
+            }
+        }
+        Some(Integer) => {
+            if !value.is_i64() {
+                return Err(anyhow!("the value of '{}' must be an Integer", key));
+            }
+        }
+        Some(Number) => {
+            if !value.is_number() {
+                return Err(anyhow!("the value of '{}' must be a Number", key));
+            }
+        }
+        Some(Array) => {
+            if !value.is_array() {
+                return Err(anyhow!("the value of '{}' must be an Array", key));
+            }
+        }
+        Some(Boolean) => {
+            if !value.is_boolean() {
+                return Err(anyhow!("the value of '{}' must be a Boolean", key));
+            }
+        }
+        Some(Null) => {
+            if !value.is_null() {
+                return Err(anyhow!("the value of '{}' must be Null", key));
+            }
+        }
+        Some(Base64) => {
+            let str_val = value
+                .as_str()
+                .ok_or_else(|| anyhow!("the value of '{}' must be a string", key))?;
+
+            if str_val.trim().is_empty() {
+                return Err(anyhow!("the value of '{}' must not be empty", key));
+            }
+
+            if general_purpose::STANDARD.decode(str_val).is_err() {
+                return Err(anyhow!("the value of '{}' must be valid Base64", key));
+            }
+        }
+        None => {}
+        Some(unsupported) => {
+            return Err(anyhow!(
+                "Unsupported type '{:?}' for query parameter '{}'",
+                unsupported,
+                key
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn format_error(kind: &str, key: &str, value: &str) -> anyhow::Error {
     anyhow::anyhow!(
         "Invalid {} format for query parameter '{}': '{}'",
@@ -240,6 +307,7 @@ fn extract_required_and_validate_props(
         if let Some(properties) = &schema.properties {
             for (key, prop) in properties {
                 if let Some(value) = input_fields.get(key) {
+                    validate_field_type(key, value, prop._type.clone())?;
                     validate_field_format(key, value, prop.format.clone())?;
                 }
             }

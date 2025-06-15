@@ -79,7 +79,7 @@ mod tests {
             Some("The UUID for this example.")
         );
         assert_eq!(parameter._in, In::Path);
-        assert_eq!(parameter.schema._type, Type::String);
+        assert_eq!(parameter.schema._type, Some(Type::String));
         assert_eq!(parameter.schema.format, Some(Format::UUID));
         assert_eq!(
             parameter.schema.example.clone().unwrap(),
@@ -105,7 +105,7 @@ mod tests {
             schema._ref.as_ref().unwrap(),
             "#/components/schemas/ExampleResponse"
         );
-        assert_eq!(schema._type, Type::Undefined);
+        assert_eq!(schema._type, None);
         assert!(schema.example.is_none());
 
         Ok(())
@@ -167,7 +167,7 @@ paths:
             .unwrap()
             .get("result")
             .unwrap();
-        assert_eq!(result._type, Type::String);
+        assert_eq!(result._type, Some(Type::String));
         assert_eq!(result.minimum, 0);
         assert_eq!(result.maximum, 0);
         assert_eq!(result.example.clone().unwrap(), "example");
@@ -234,7 +234,7 @@ paths:
         let first = &all_of[0];
 
         // Validate "allOf" object
-        assert_eq!(first._type, Type::Object);
+        assert_eq!(first._type, Some(Type::Object));
         assert!(first.description.is_none());
 
         // Validate "result" object properties
@@ -242,7 +242,7 @@ paths:
             .properties
             .get("result")
             .ok_or("Missing result property")?;
-        assert_eq!(result._type, Type::Object);
+        assert_eq!(result._type, Some(Type::Object));
         assert_eq!(result.description.as_deref(), Some("example."));
         assert!(!result.required.is_empty());
 
@@ -253,7 +253,7 @@ paths:
             .ok_or("Missing properties in result")?
             .get("uuid")
             .ok_or("Missing uuid")?;
-        assert_eq!(uuid._type, Type::String);
+        assert_eq!(uuid._type, Some(Type::String));
         assert_eq!(
             uuid.description.as_deref(),
             Some("The UUID for this example.")
@@ -273,7 +273,7 @@ paths:
             .ok_or("Missing properties in result")?
             .get("count")
             .ok_or("Missing count")?;
-        assert_eq!(count._type, Type::Integer);
+        assert_eq!(count._type, Some(Type::Integer));
         assert_eq!(count.description.as_deref(), Some("example count."));
         assert_eq!(count.format, None);
         assert_eq!(count.example.clone().unwrap(), 1);
@@ -332,7 +332,7 @@ paths:
         let one_of = &example_response.one_of.as_ref().unwrap()[0];
 
         // Validate "oneOf" object
-        assert_eq!(one_of._type, Type::Object);
+        assert_eq!(one_of._type, Some(Type::Object));
         assert!(one_of.description.is_none());
 
         // Validate "result" object properties
@@ -341,7 +341,7 @@ paths:
             .properties
             .get("result")
             .ok_or("Missing result property")?;
-        assert_eq!(result._type, Type::Object);
+        assert_eq!(result._type, Some(Type::Object));
         assert_eq!(result.description.as_deref(), Some("example."));
         assert!(result.required.is_empty());
 
@@ -352,7 +352,7 @@ paths:
             .ok_or("Missing properties in result")?
             .get("uuid")
             .ok_or("Missing uuid")?;
-        assert_eq!(uuid._type, Type::String);
+        assert_eq!(uuid._type, Some(Type::String));
         assert_eq!(
             uuid.description.as_deref(),
             Some("The UUID for this example.")
@@ -435,7 +435,7 @@ paths:
         let one_of = schema.one_of.as_ref().ok_or("Missing oneOf")?;
         assert_eq!(one_of.len(), 3);
         for one_of_item in one_of {
-            assert_eq!(one_of_item._type, Type::Undefined);
+            assert_eq!(one_of_item._type, None);
             assert!(one_of_item.description.is_none());
             assert!(one_of_item.properties.is_empty());
 
@@ -495,7 +495,7 @@ paths:
 
         // Validate uuid property
         let uuid = properties.get("uuid").unwrap();
-        assert_eq!(uuid._type, Type::String);
+        assert_eq!(uuid._type, Some(Type::String));
         assert_eq!(
             uuid.description.as_deref(),
             Some("The UUID for this example.")
@@ -508,7 +508,7 @@ paths:
 
         // Validate multi_uuid property
         let multi_uuid = properties.get("multi_uuid").unwrap();
-        assert_eq!(multi_uuid._type, Type::Array);
+        assert_eq!(multi_uuid._type, Some(Type::Array));
         assert_eq!(
             multi_uuid.description.as_deref(),
             Some("The Multi UUID for this example.")

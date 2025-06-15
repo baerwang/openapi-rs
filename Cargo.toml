@@ -17,3 +17,4 @@ url = "2"
 serde_json = "1.0.140"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 validator = "0.16"
+base64 = "0.21"

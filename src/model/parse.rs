@@ -115,8 +115,8 @@ pub struct Parameter {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Schema {
-    #[serde(rename = "type", default)]
-    pub _type: Type,
+    #[serde(rename = "type")]
+    pub _type: Option<Type>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
     pub examples: Option<Vec<String>>,
@@ -155,8 +155,8 @@ pub enum SchemaOption {
 pub struct ComponentSchemaBase {
     pub title: Option<String>,
     pub description: Option<String>,
-    #[serde(rename = "type", default)]
-    pub _type: Type,
+    #[serde(rename = "type")]
+    pub _type: Option<Type>,
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
     pub required: Vec<String>,
@@ -168,8 +168,8 @@ pub struct ComponentSchemaBase {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentProperties {
-    #[serde(rename = "type", default)]
-    pub _type: Type,
+    #[serde(rename = "type")]
+    pub _type: Option<Type>,
     pub description: Option<String>,
     #[serde(default)]
     pub properties: HashMap<String, Properties>,
@@ -179,8 +179,8 @@ pub struct ComponentProperties {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Properties {
-    #[serde(rename = "type", default)]
-    pub _type: Type,
+    #[serde(rename = "type")]
+    pub _type: Option<Type>,
     pub description: Option<String>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
@@ -198,7 +198,7 @@ pub struct ComponentsObject {
     pub schemas: HashMap<String, ComponentSchemaBase>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all(deserialize = "lowercase"))]
 pub enum Type {
     Object,
@@ -210,8 +210,6 @@ pub enum Type {
     Null,
     Binary,
     Base64,
-    #[default]
-    Undefined,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
