@@ -135,7 +135,9 @@ pub fn body(path: &str, request_fields: HashMap<String, Value>, open_api: &OpenA
         for (key, media_type) in &request.content {
             if let Some(field) = request_fields.get(key) {
                 validate_field_type(key, field, media_type.schema._type.clone())?;
-                validate_field_format(key, field, media_type.schema.format.clone())?;
+                if media_type.schema._type == Some(Type::String) {
+                    validate_field_format(key, field, media_type.schema.format.clone())?;
+                }
             }
         }
 
@@ -289,13 +291,13 @@ fn validate_field_length_limit(key: &str, value: &Value, properties: &Properties
                 .as_str()
                 .ok_or_else(|| anyhow!("The value of '{}' must be a String", key))?;
 
-            if let Some(min) = properties.minimum {
+            if let Some(min) = properties.min_length {
                 if str_val.len() < min as usize {
                     return Err(anyhow!("The length of '{}' must be at least {}", key, min));
                 }
             }
 
-            if let Some(max) = properties.maximum {
+            if let Some(max) = properties.max_length {
                 if str_val.len() > max as usize {
                     return Err(anyhow!("The length of '{}' must be at most {}", key, max));
                 }
@@ -379,7 +381,9 @@ fn extract_required_and_validate_props(
             for (key, prop) in properties {
                 if let Some(value) = input_fields.get(key) {
                     validate_field_type(key, value, prop._type.clone())?;
-                    validate_field_format(key, value, prop.format.clone())?;
+                    if prop._type == Some(Type::String) {
+                        validate_field_format(key, value, prop.format.clone())?;
+                    }
                     validate_field_length_limit(key, value, prop)?;
                 }
             }

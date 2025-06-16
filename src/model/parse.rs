@@ -184,6 +184,10 @@ pub struct Properties {
     pub description: Option<String>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
+    #[serde(rename = "minLength")]
+    pub min_length: Option<u64>,
+    #[serde(rename = "maxLength")]
+    pub max_length: Option<u64>,
     pub minimum: Option<f64>,
     pub maximum: Option<f64>,
     pub properties: Option<HashMap<String, Properties>>,

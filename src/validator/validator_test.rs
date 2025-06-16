@@ -471,4 +471,102 @@ paths:
             assert_eq!(t(test.value, test.f), test.assert);
         }
     }
+
+    #[test]
+    fn test_query_value_limit_validation() {
+        let content = r#"
+openapi: 3.1.0
+info:
+  title: Example API
+  description: API definitions for example
+  version: '0.0.1'
+  x-file-identifier: example
+
+components:
+  schemas:
+    ExampleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The Name for this example.
+          example: example
+          minLength: 1
+          maxLength: 7
+        age:
+          type: integer
+          description: The age for this example.
+          example: 1
+          minimum: 1
+          maximum: 10
+      required:
+        - name
+        - age
+    ExampleResponse:
+      properties:
+        name:
+          type: string
+          description: The Name for this example.
+          example: example
+
+security: [ ]
+
+paths:
+  /example:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+                $ref: '#/components/schemas/ExampleRequest'
+      responses:
+        '200':
+          description: Post a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+"#;
+
+        let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
+
+        fn make_request(value: &str) -> request::axum::RequestData {
+            request::axum::RequestData {
+                path: "/example".to_string(),
+                inner: axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/example")
+                    .body(axum::body::Body::from(format!("{}", value)))
+                    .unwrap(),
+                body: Some(Bytes::from(format!("{}", value))),
+            }
+        }
+
+        struct Tests {
+            value: &'static str,
+            assert: bool,
+        }
+
+        let tests: Vec<Tests> = vec![
+            Tests {
+                value: r#"{"name":"example","age":1}"#,
+                assert: true,
+            },
+            Tests {
+                value: r#"{"name":"example","age":100}"#,
+                assert: false,
+            },
+            Tests {
+                value: r#"{"name":"example-100","age":1}"#,
+                assert: false,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                openapi.validator(make_request(test.value)).is_ok(),
+                test.assert
+            );
+        }
+    }
 }
