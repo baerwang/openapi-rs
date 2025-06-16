@@ -168,8 +168,8 @@ paths:
             .get("result")
             .unwrap();
         assert_eq!(result._type, Some(Type::String));
-        assert_eq!(result.minimum, 0);
-        assert_eq!(result.maximum, 0);
+        assert_eq!(result.minimum, None);
+        assert_eq!(result.maximum, None);
         assert_eq!(result.example.clone().unwrap(), "example");
 
         Ok(())
@@ -203,7 +203,6 @@ components:
                   type: integer
                   description: example count.
                   example: 1
-                  minimum: 0
                   maximum: 1
               required:
                 - uuid
@@ -263,8 +262,8 @@ paths:
             uuid.example.clone().unwrap(),
             "00000000-0000-0000-0000-000000000000"
         );
-        assert_eq!(uuid.minimum, 0);
-        assert_eq!(uuid.maximum, 0);
+        assert_eq!(uuid.minimum, None);
+        assert_eq!(uuid.maximum, None);
 
         // Validate "count" property in result
         let count = result
@@ -277,8 +276,8 @@ paths:
         assert_eq!(count.description.as_deref(), Some("example count."));
         assert_eq!(count.format, None);
         assert_eq!(count.example.clone().unwrap(), 1);
-        assert_eq!(count.minimum, 0);
-        assert_eq!(count.maximum, 1);
+        assert_eq!(count.minimum, None);
+        assert_eq!(count.maximum, Some(1.0));
 
         Ok(())
     }
@@ -362,8 +361,8 @@ paths:
             uuid.example.clone().unwrap(),
             "00000000-0000-0000-0000-000000000000"
         );
-        assert_eq!(uuid.minimum, 0);
-        assert_eq!(uuid.maximum, 0);
+        assert_eq!(uuid.minimum, None);
+        assert_eq!(uuid.maximum, None);
 
         Ok(())
     }

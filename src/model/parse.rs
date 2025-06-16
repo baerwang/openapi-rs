@@ -184,10 +184,8 @@ pub struct Properties {
     pub description: Option<String>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
-    #[serde(default)]
-    pub minimum: i64,
-    #[serde(default)]
-    pub maximum: i64,
+    pub minimum: Option<f64>,
+    pub maximum: Option<f64>,
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
     pub required: Vec<String>,

@@ -18,7 +18,7 @@
 mod validator_test;
 
 use crate::model::parse;
-use crate::model::parse::{ComponentsObject, Format, In, Method, OpenAPI, Type};
+use crate::model::parse::{ComponentsObject, Format, In, Method, OpenAPI, Properties, Type};
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -280,6 +280,77 @@ fn validate_field_type(key: &str, value: &Value, field_type: Option<Type>) -> Re
     Ok(())
 }
 
+fn validate_field_length_limit(key: &str, value: &Value, properties: &Properties) -> Result<()> {
+    use Type::*;
+
+    match &properties._type {
+        Some(String) => {
+            let str_val = value
+                .as_str()
+                .ok_or_else(|| anyhow!("The value of '{}' must be a String", key))?;
+
+            if let Some(min) = properties.minimum {
+                if str_val.len() < min as usize {
+                    return Err(anyhow!("The length of '{}' must be at least {}", key, min));
+                }
+            }
+
+            if let Some(max) = properties.maximum {
+                if str_val.len() > max as usize {
+                    return Err(anyhow!("The length of '{}' must be at most {}", key, max));
+                }
+            }
+        }
+
+        Some(Integer) => {
+            let int_val = value
+                .as_i64()
+                .ok_or_else(|| anyhow!("The value of '{}' must be an Integer", key))?;
+
+            if let Some(min) = properties.minimum {
+                if int_val < min as i64 {
+                    return Err(anyhow!("The value of '{}' must be >= {}", key, min as i64));
+                }
+            }
+
+            if let Some(max) = properties.maximum {
+                if int_val > max as i64 {
+                    return Err(anyhow!("The value of '{}' must be <= {}", key, max as i64));
+                }
+            }
+        }
+
+        Some(Number) => {
+            let num_val = value
+                .as_f64()
+                .ok_or_else(|| anyhow!("The value of '{}' must be a Number", key))?;
+
+            if let Some(min) = properties.minimum {
+                if num_val < min {
+                    return Err(anyhow!("The value of '{}' must be >= {}", key, min));
+                }
+            }
+
+            if let Some(max) = properties.maximum {
+                if num_val > max {
+                    return Err(anyhow!("The value of '{}' must be <= {}", key, max));
+                }
+            }
+        }
+
+        None => {}
+        Some(other) => {
+            return Err(anyhow!(
+                "Unsupported type '{:?}' for field '{}'",
+                other,
+                key
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn format_error(kind: &str, key: &str, value: &str) -> anyhow::Error {
     anyhow::anyhow!(
         "Invalid {} format for query parameter '{}': '{}'",
@@ -309,6 +380,7 @@ fn extract_required_and_validate_props(
                 if let Some(value) = input_fields.get(key) {
                     validate_field_type(key, value, prop._type.clone())?;
                     validate_field_format(key, value, prop.format.clone())?;
+                    validate_field_length_limit(key, value, prop)?;
                 }
             }
         }
