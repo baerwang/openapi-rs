@@ -376,21 +376,30 @@ fn extract_required_and_validate_props(
 
     if let Some(schema) = components.schemas.get(filename) {
         requireds.extend(schema.required.iter().cloned());
-
-        if let Some(properties) = &schema.properties {
-            for (key, prop) in properties {
-                if let Some(value) = input_fields.get(key) {
-                    validate_field_type(key, value, prop._type.clone())?;
-                    if prop._type == Some(Type::String) {
-                        validate_field_format(key, value, prop.format.clone())?;
-                    }
-                    validate_field_length_limit(key, value, prop)?;
-                }
-            }
-        }
+        validate_properties(input_fields, &schema.properties)?;
     }
 
     Ok(requireds)
+}
+
+fn validate_properties(
+    input_fields: &HashMap<String, Value>,
+    properties: &Option<HashMap<String, Properties>>,
+) -> Result<()> {
+    if let Some(properties) = properties {
+        for (key, prop) in properties {
+            if let Some(value) = input_fields.get(key) {
+                validate_field_type(key, value, prop._type.clone())?;
+                if prop._type == Some(Type::String) {
+                    validate_field_format(key, value, prop.format.clone())?;
+                }
+                validate_field_length_limit(key, value, prop)?;
+            }
+            validate_properties(input_fields, &prop.properties)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn collect_refs(schema: &parse::Schema) -> Vec<&str> {
