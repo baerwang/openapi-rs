@@ -23,6 +23,18 @@ mod tests {
     use axum::body::Bytes;
     use serde_json::Value;
 
+    fn make_request_body_with_value(value: &str) -> request::axum::RequestData {
+        request::axum::RequestData {
+            path: "/example".to_string(),
+            inner: axum::http::Request::builder()
+                .method("POST")
+                .uri("/example")
+                .body(axum::body::Body::from(format!("{}", value)))
+                .unwrap(),
+            body: Some(Bytes::from(format!("{}", value))),
+        }
+    }
+
     #[test]
     fn test_uuid_path_validation() {
         let content = r#"
@@ -237,21 +249,6 @@ paths:
 
         let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
 
-        fn make_request(value: &str) -> request::axum::RequestData {
-            request::axum::RequestData {
-                path: "/example".to_string(),
-                inner: axum::http::Request::builder()
-                    .method("POST")
-                    .uri("/example")
-                    .body(axum::body::Body::from(format!(
-                        "{{\"uuid\":\"{}\"}}",
-                        value
-                    )))
-                    .unwrap(),
-                body: Some(Bytes::from(format!("{{\"uuid\":\"{}\"}}", value))),
-            }
-        }
-
         struct Tests {
             value: &'static str,
             assert: bool,
@@ -259,18 +256,20 @@ paths:
 
         let tests: Vec<Tests> = vec![
             Tests {
-                value: "00000000-0000-0000-0000-000000000000",
+                value: r#"{"uuid":"00000000-0000-0000-0000-000000000000"}"#,
                 assert: true,
             },
             Tests {
-                value: "00000000-0000-0000-0000-xxxx",
+                value: r#"{"uuid":"00000000-0000-0000-0000-xxxx"}"#,
                 assert: false,
             },
         ];
 
         for test in tests {
             assert_eq!(
-                openapi.validator(make_request(test.value)).is_ok(),
+                openapi
+                    .validator(make_request_body_with_value(test.value))
+                    .is_ok(),
                 test.assert
             );
         }
@@ -530,18 +529,6 @@ paths:
 
         let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
 
-        fn make_request(value: &str) -> request::axum::RequestData {
-            request::axum::RequestData {
-                path: "/example".to_string(),
-                inner: axum::http::Request::builder()
-                    .method("POST")
-                    .uri("/example")
-                    .body(axum::body::Body::from(format!("{}", value)))
-                    .unwrap(),
-                body: Some(Bytes::from(format!("{}", value))),
-            }
-        }
-
         struct Tests {
             value: &'static str,
             assert: bool,
@@ -564,7 +551,9 @@ paths:
 
         for test in tests {
             assert_eq!(
-                openapi.validator(make_request(test.value)).is_ok(),
+                openapi
+                    .validator(make_request_body_with_value(test.value))
+                    .is_ok(),
                 test.assert
             );
         }
@@ -629,18 +618,6 @@ paths:
 
         let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
 
-        fn make_request(value: &str) -> request::axum::RequestData {
-            request::axum::RequestData {
-                path: "/example".to_string(),
-                inner: axum::http::Request::builder()
-                    .method("POST")
-                    .uri("/example")
-                    .body(axum::body::Body::from(format!("{}", value)))
-                    .unwrap(),
-                body: Some(Bytes::from(format!("{}", value))),
-            }
-        }
-
         struct Tests {
             value: &'static str,
             assert: bool,
@@ -663,7 +640,9 @@ paths:
 
         for test in tests {
             assert_eq!(
-                openapi.validator(make_request(test.value)).is_ok(),
+                openapi
+                    .validator(make_request_body_with_value(test.value))
+                    .is_ok(),
                 test.assert
             );
         }
