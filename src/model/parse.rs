@@ -118,6 +118,7 @@ pub struct Schema {
     #[serde(rename = "type")]
     pub _type: Option<Type>,
     pub format: Option<Format>,
+    pub properties: Option<HashMap<String, Properties>>,
     pub example: Option<serde_yaml::Value>,
     pub examples: Option<Vec<String>>,
     #[serde(rename = "$ref")]
@@ -157,6 +158,7 @@ pub struct ComponentSchemaBase {
     pub description: Option<String>,
     #[serde(rename = "type")]
     pub _type: Option<Type>,
+    pub items: Option<Box<ComponentSchemaBase>>,
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
     pub required: Vec<String>,

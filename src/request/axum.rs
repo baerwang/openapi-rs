@@ -65,7 +65,7 @@ impl ValidateRequest for RequestData {
             .body
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Missing body"))?;
-        let request_fields: HashMap<String, Value> = serde_json::from_slice(self_body)?;
+        let request_fields: Value = serde_json::from_slice(self_body)?;
         body(self.path.as_str(), request_fields, open_api)
     }
 }

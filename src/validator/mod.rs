@@ -18,11 +18,13 @@
 mod validator_test;
 
 use crate::model::parse;
-use crate::model::parse::{ComponentsObject, Format, In, Method, OpenAPI, Properties, Type};
+use crate::model::parse::{
+    ComponentsObject, Format, In, Method, OpenAPI, Properties, Request, Type,
+};
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
@@ -105,7 +107,7 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
 
         for schema_ref in collect_refs(&parameter.schema) {
             if let Some(components) = &open_api.components {
-                let fields: HashMap<String, Value> = query_pairs
+                let fields: Map<String, Value> = query_pairs
                     .iter()
                     .map(|(k, v)| (k.clone(), Value::from(v.clone())))
                     .collect();
@@ -125,44 +127,66 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
     Ok(())
 }
 
-pub fn body(path: &str, request_fields: HashMap<String, Value>, open_api: &OpenAPI) -> Result<()> {
+pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
     let path_base = open_api.paths.get(path).context("Path not found")?;
     let request = path_base
         .get(&Method::Post)
         .and_then(|p| p.request.as_ref());
 
     if let Some(request) = request {
-        for (key, media_type) in &request.content {
-            if let Some(field) = request_fields.get(key) {
-                validate_field_type(key, field, media_type.schema._type.clone())?;
-                if media_type.schema._type == Some(Type::String) {
-                    validate_field_format(key, field, media_type.schema.format.clone())?;
-                }
-            }
-        }
-
         let refs: Vec<&str> = request
             .content
             .values()
             .flat_map(|media| collect_refs(&media.schema))
             .collect();
 
-        let mut requireds = HashSet::new();
+        if let Value::Object(ref map) = fields {
+            validate_map(map, request, &refs, open_api)?;
+        } else if let Value::Array(ref arr) = fields {
+            for item in arr {
+                let map = item
+                    .as_object()
+                    .context("Each array item must be an object")?;
+                validate_map(map, request, &refs, open_api)?;
+            }
+        } else {
+            return Err(anyhow!(
+                "Unsupported request body type: must be object or array"
+            ));
+        }
+    }
 
-        if let Some(components) = &open_api.components {
-            for schema_ref in refs {
-                requireds.extend(extract_required_and_validate_props(
-                    &request_fields,
-                    schema_ref,
-                    components,
-                )?);
+    Ok(())
+}
+
+fn validate_map(
+    fields: &Map<String, Value>,
+    request: &Request,
+    refs: &[&str],
+    open_api: &OpenAPI,
+) -> Result<()> {
+    for (key, media_type) in &request.content {
+        if let Some(field) = fields.get(key) {
+            validate_field_type(key, field, media_type.schema._type.clone())?;
+            if media_type.schema._type == Some(Type::String) {
+                validate_field_format(key, field, media_type.schema.format.clone())?;
             }
         }
+    }
 
-        for key in &requireds {
-            if !request_fields.contains_key(key) {
-                return Err(anyhow!("Missing required request body field: '{}'", key));
-            }
+    let mut requireds = HashSet::new();
+
+    if let Some(components) = &open_api.components {
+        for schema_ref in refs {
+            requireds.extend(extract_required_and_validate_props(
+                fields, schema_ref, components,
+            )?);
+        }
+    }
+
+    for key in &requireds {
+        if !fields.contains_key(key) {
+            return Err(anyhow!("Missing required request body field: '{}'", key));
         }
     }
 
@@ -363,7 +387,7 @@ fn format_error(kind: &str, key: &str, value: &str) -> anyhow::Error {
 }
 
 fn extract_required_and_validate_props(
-    input_fields: &HashMap<String, Value>,
+    fields: &Map<String, Value>,
     schema_ref: &str,
     components: &ComponentsObject,
 ) -> Result<HashSet<String>> {
@@ -376,26 +400,31 @@ fn extract_required_and_validate_props(
 
     if let Some(schema) = components.schemas.get(filename) {
         requireds.extend(schema.required.iter().cloned());
-        validate_properties(input_fields, &schema.properties)?;
+        validate_properties(fields, &schema.properties)?;
+
+        if let Some(items) = &schema.items {
+            requireds.extend(items.required.iter().cloned());
+            validate_properties(fields, &items.properties)?;
+        }
     }
 
     Ok(requireds)
 }
 
 fn validate_properties(
-    input_fields: &HashMap<String, Value>,
+    fields: &Map<String, Value>,
     properties: &Option<HashMap<String, Properties>>,
 ) -> Result<()> {
     if let Some(properties) = properties {
         for (key, prop) in properties {
-            if let Some(value) = input_fields.get(key) {
+            if let Some(value) = fields.get(key) {
                 validate_field_type(key, value, prop._type.clone())?;
                 if prop._type == Some(Type::String) {
                     validate_field_format(key, value, prop.format.clone())?;
                 }
                 validate_field_length_limit(key, value, prop)?;
             }
-            validate_properties(input_fields, &prop.properties)?;
+            validate_properties(fields, &prop.properties)?;
         }
     }
 
