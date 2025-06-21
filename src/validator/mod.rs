@@ -140,9 +140,21 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
             .flat_map(|media| collect_refs(&media.schema))
             .collect();
 
+        let _type: Option<Type> = open_api.components.as_ref().and_then(|components| {
+            refs.iter().find_map(|schema_ref| {
+                schema_ref
+                    .rsplit('/')
+                    .next()
+                    .and_then(|filename| components.schemas.get(filename))
+                    .and_then(|schema| schema._type.clone())
+            })
+        });
+
         if let Value::Object(ref map) = fields {
+            ensure_type(&_type, Type::Object)?;
             validate_map(map, request, &refs, open_api)?;
         } else if let Value::Array(ref arr) = fields {
+            ensure_type(&_type, Type::Array)?;
             for item in arr {
                 let map = item
                     .as_object()
@@ -156,6 +168,19 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn ensure_type(actual: &Option<Type>, expected: Type) -> Result<()> {
+    if let Some(t) = actual {
+        if *t != expected {
+            return Err(anyhow!(
+                "Expected request body to be a {:?}, got {:?}",
+                expected,
+                t
+            ));
+        }
+    }
     Ok(())
 }
 

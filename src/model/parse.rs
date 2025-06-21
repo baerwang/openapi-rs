@@ -91,7 +91,8 @@ pub struct ServerObject {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PathBase {
+pub struct PathBase
+{
     pub summary: Option<String>,
     pub description: Option<String>,
     pub operation_id: Option<String>,

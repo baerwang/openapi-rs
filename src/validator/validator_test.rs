@@ -636,6 +636,10 @@ paths:
                 value: r#"[{"name":"example-100","age":1}]"#,
                 assert: false,
             },
+            Tests {
+                value: r#"{"name":"example","age":1}"#,
+                assert: false,
+            },
         ];
 
         for test in tests {
