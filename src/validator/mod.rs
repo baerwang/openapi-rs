@@ -18,16 +18,13 @@
 mod validator_test;
 
 use crate::model::parse;
-use crate::model::parse::{
-    ComponentsObject, Format, In, Method, OpenAPI, Properties, Request, Type,
-};
+use crate::model::parse::{ComponentsObject, Format, In, OpenAPI, Properties, Request, Type};
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
-use std::str::FromStr;
 
 pub trait ValidateRequest {
     fn header(&self, _: &OpenAPI) -> Result<()>;
@@ -40,9 +37,7 @@ pub trait ValidateRequest {
 pub fn method(path: &str, method: &str, open_api: &OpenAPI) -> Result<()> {
     let path = open_api.paths.get(path).context("Path not found")?;
 
-    let method = Method::from_str(method).map_err(|e| anyhow::anyhow!(e))?;
-
-    if path.get(&method).is_none() {
+    if !path.operations.contains_key(method) {
         return Err(anyhow::anyhow!("Path is empty"));
     }
 
@@ -53,20 +48,26 @@ pub fn path(path: &str, uri: &str, open_api: &OpenAPI) -> Result<()> {
     let path_item = open_api.paths.get(path).context("Path not found")?;
     let empty_vec = vec![];
     let parameters = path_item
-        .get(&Method::Get)
+        .operations
+        .get("get")
         .and_then(|p| p.parameters.as_ref())
         .unwrap_or(&empty_vec);
 
     for parameter in parameters {
-        if parameter._in != In::Path {
-            continue;
+        match parameter {
+            parse::Parameter::Item {
+                name, r#in, schema, ..
+            } => {
+                if *r#in != In::Path {
+                    continue;
+                }
+                validate_field_format(name, &Value::from(uri), schema.format.clone())?;
+            }
+            parse::Parameter::Ref { .. } => {
+                // todo
+                continue;
+            }
         }
-
-        validate_field_format(
-            &parameter.name,
-            &Value::from(uri),
-            parameter.schema.format.clone(),
-        )?
     }
 
     Ok(())
@@ -76,44 +77,58 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
     let path_base = open_api.paths.get(path).context("Path not found")?;
     let empty_vec = vec![];
     let parameters = path_base
-        .get(&Method::Get)
+        .operations
+        .get("get")
         .and_then(|p| p.parameters.as_ref())
         .unwrap_or(&empty_vec);
 
     let mut requireds: HashSet<String> = HashSet::new();
 
     for parameter in parameters {
-        if parameter._in != In::Query {
-            continue;
-        }
-
-        match query_pairs.get(&parameter.name) {
-            Some(value) => {
-                if parameter.required && value.trim().is_empty() {
-                    return Err(anyhow!("This field [{}] is required", parameter.name));
+        match parameter {
+            parse::Parameter::Item {
+                name,
+                r#in,
+                required,
+                schema,
+                ..
+            } => {
+                if *r#in != In::Query {
+                    continue;
                 }
+                match query_pairs.get(name) {
+                    Some(value) => {
+                        if *required && value.trim().is_empty() {
+                            return Err(anyhow!("This field [{}] is required", name));
+                        }
 
-                validate_field_format(
-                    &parameter.name,
-                    &Value::from(value.as_str()),
-                    parameter.schema.format.clone(),
-                )?;
+                        validate_field_format(
+                            name,
+                            &Value::from(value.as_str()),
+                            schema.format.clone(),
+                        )?;
+                    }
+                    None if *required => {
+                        return Err(anyhow!("This field [{}] is required", name));
+                    }
+                    _ => {}
+                }
+                for schema_ref in collect_refs(schema) {
+                    if let Some(components) = &open_api.components {
+                        let fields: Map<String, Value> = query_pairs
+                            .iter()
+                            .map(|(k, v)| (k.clone(), Value::from(v.clone())))
+                            .collect();
+                        requireds.extend(extract_required_and_validate_props(
+                            &fields, schema_ref, components,
+                        )?);
+                    }
+                }
             }
-            None if parameter.required => {
-                return Err(anyhow!("This field [{}] is required", parameter.name));
-            }
-            _ => {}
-        }
 
-        for schema_ref in collect_refs(&parameter.schema) {
-            if let Some(components) = &open_api.components {
-                let fields: Map<String, Value> = query_pairs
-                    .iter()
-                    .map(|(k, v)| (k.clone(), Value::from(v.clone())))
-                    .collect();
-                requireds.extend(extract_required_and_validate_props(
-                    &fields, schema_ref, components,
-                )?);
+            parse::Parameter::Ref { .. } => {
+                // todo
+                continue;
             }
         }
     }
@@ -130,7 +145,8 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
 pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
     let path_base = open_api.paths.get(path).context("Path not found")?;
     let request = path_base
-        .get(&Method::Post)
+        .operations
+        .get("post")
         .and_then(|p| p.request.as_ref());
 
     if let Some(request) = request {
@@ -146,7 +162,7 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
                     .rsplit('/')
                     .next()
                     .and_then(|filename| components.schemas.get(filename))
-                    .and_then(|schema| schema._type.clone())
+                    .and_then(|schema| schema.r#type.clone())
             })
         });
 
@@ -192,8 +208,8 @@ fn validate_map(
 ) -> Result<()> {
     for (key, media_type) in &request.content {
         if let Some(field) = fields.get(key) {
-            validate_field_type(key, field, media_type.schema._type.clone())?;
-            if media_type.schema._type == Some(Type::String) {
+            validate_field_type(key, field, media_type.schema.r#type.clone())?;
+            if media_type.schema.r#type == Some(Type::String) {
                 validate_field_format(key, field, media_type.schema.format.clone())?;
             }
         }
@@ -334,7 +350,7 @@ fn validate_field_type(key: &str, value: &Value, field_type: Option<Type>) -> Re
 fn validate_field_length_limit(key: &str, value: &Value, properties: &Properties) -> Result<()> {
     use Type::*;
 
-    match &properties._type {
+    match &properties.r#type {
         Some(String) => {
             let str_val = value
                 .as_str()
@@ -443,8 +459,8 @@ fn validate_properties(
     if let Some(properties) = properties {
         for (key, prop) in properties {
             if let Some(value) = fields.get(key) {
-                validate_field_type(key, value, prop._type.clone())?;
-                if prop._type == Some(Type::String) {
+                validate_field_type(key, value, prop.r#type.clone())?;
+                if prop.r#type == Some(Type::String) {
                     validate_field_format(key, value, prop.format.clone())?;
                 }
                 validate_field_length_limit(key, value, prop)?;
@@ -458,19 +474,19 @@ fn validate_properties(
 
 fn collect_refs(schema: &parse::Schema) -> Vec<&str> {
     let mut refs = Vec::new();
-    if let Some(r) = &schema._ref {
+    if let Some(r) = &schema.r#ref {
         refs.push(r.as_str());
     }
     if let Some(one_of) = &schema.one_of {
         for s in one_of {
-            if let Some(r) = &s._ref {
+            if let Some(r) = &s.r#ref {
                 refs.push(r.as_str());
             }
         }
     }
     if let Some(all_of) = &schema.all_of {
         for s in all_of {
-            if let Some(r) = &s._ref {
+            if let Some(r) = &s.r#ref {
                 refs.push(r.as_str());
             }
         }

@@ -19,7 +19,6 @@ use crate::validator::ValidateRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OpenAPI {
@@ -27,12 +26,21 @@ pub struct OpenAPI {
     pub info: InfoObject,
     #[serde(default)]
     pub servers: Vec<ServerObject>,
-    pub paths: HashMap<String, HashMap<Method, PathBase>>,
+    pub paths: HashMap<String, PathItem>,
     pub components: Option<ComponentsObject>,
     #[serde(default)]
     pub security: Vec<HashMap<String, SecurityRequirementObject>>,
-    #[serde(default)]
-    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PathItem {
+    pub parameters: Option<Vec<Parameter>>, // Path-level parameters
+    #[serde(flatten)]
+    pub operations: HashMap<String, PathBase>, // For HTTP methods (get, post, etc.)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub servers: Vec<ServerObject>, // Will be ignored during deserialization
+    #[serde(flatten)]
+    pub extra: serde_yaml::Value, // Catches any other fields
 }
 
 macro_rules! require_non_empty {
@@ -98,31 +106,37 @@ pub struct PathBase {
     pub parameters: Option<Vec<Parameter>>,
     #[serde(rename = "requestBody")]
     pub request: Option<Request>,
-    pub responses: Option<HashMap<String, Response>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Parameter {
-    pub name: String,
-    #[serde(rename = "in")]
-    pub _in: In,
-    #[serde(default)]
-    pub required: bool,
-    pub description: Option<String>,
-    pub example: Option<serde_yaml::Value>,
-    pub schema: Schema,
+#[serde(untagged)]
+pub enum Parameter {
+    Ref {
+        #[serde(rename = "$ref")]
+        r#ref: String,
+    },
+    Item {
+        name: String,
+        #[serde(rename = "in")]
+        r#in: In,
+        #[serde(default)]
+        required: bool,
+        description: Option<String>,
+        example: Option<serde_yaml::Value>,
+        schema: Schema,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Schema {
     #[serde(rename = "type")]
-    pub _type: Option<Type>,
+    pub r#type: Option<Type>,
     pub format: Option<Format>,
     pub properties: Option<HashMap<String, Properties>>,
     pub example: Option<serde_yaml::Value>,
     pub examples: Option<Vec<String>>,
     #[serde(rename = "$ref")]
-    pub _ref: Option<String>,
+    pub r#ref: Option<String>,
     #[serde(rename = "allOf")]
     pub all_of: Option<Vec<ComponentProperties>>,
     #[serde(rename = "oneOf")]
@@ -140,11 +154,6 @@ pub struct Request {
     pub required: bool,
     pub content: HashMap<String, BaseContent>,
 }
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Response {
-    pub content: HashMap<String, BaseContent>,
-    pub description: Option<String>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SchemaOption {
@@ -157,7 +166,7 @@ pub struct ComponentSchemaBase {
     pub title: Option<String>,
     pub description: Option<String>,
     #[serde(rename = "type")]
-    pub _type: Option<Type>,
+    pub r#type: Option<Type>,
     pub items: Option<Box<ComponentSchemaBase>>,
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
@@ -171,18 +180,18 @@ pub struct ComponentSchemaBase {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentProperties {
     #[serde(rename = "type")]
-    pub _type: Option<Type>,
+    pub r#type: Option<Type>,
     pub description: Option<String>,
     #[serde(default)]
     pub properties: HashMap<String, Properties>,
     #[serde(rename = "$ref")]
-    pub _ref: Option<String>,
+    pub r#ref: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Properties {
     #[serde(rename = "type")]
-    pub _type: Option<Type>,
+    pub r#type: Option<Type>,
     pub description: Option<String>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
@@ -214,39 +223,6 @@ pub enum Type {
     Null,
     Binary,
     Base64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all(deserialize = "lowercase"))]
-pub enum Method {
-    Get,
-    Head,
-    Post,
-    Put,
-    Delete,
-    Connect,
-    Patch,
-    Options,
-    Trace,
-}
-
-impl FromStr for Method {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_uppercase().as_str() {
-            "GET" => Ok(Method::Get),
-            "HEAD" => Ok(Method::Head),
-            "POST" => Ok(Method::Post),
-            "PUT" => Ok(Method::Put),
-            "DELETE" => Ok(Method::Delete),
-            "CONNECT" => Ok(Method::Connect),
-            "PATCH" => Ok(Method::Patch),
-            "OPTIONS" => Ok(Method::Options),
-            "TRACE" => Ok(Method::Trace),
-            _ => Err(format!("Invalid method: {}", s)),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

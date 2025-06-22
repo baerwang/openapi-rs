@@ -36,7 +36,11 @@ impl ValidateRequest for RequestData {
     }
 
     fn method(&self, open_api: &OpenAPI) -> Result<()> {
-        method(self.path.as_str(), self.inner.method().as_str(), open_api)
+        method(
+            self.path.as_str(),
+            self.inner.method().to_string().to_lowercase().as_str(),
+            open_api,
+        )
     }
 
     fn query(&self, open_api: &OpenAPI) -> Result<()> {
