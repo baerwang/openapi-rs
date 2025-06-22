@@ -123,7 +123,7 @@ pub enum Parameter {
         required: bool,
         description: Option<String>,
         example: Option<serde_yaml::Value>,
-        schema: Schema,
+        schema: Box<Schema>,
     },
 }
 
