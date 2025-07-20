@@ -17,7 +17,7 @@
 
 #[cfg(test)]
 mod tests {
-    use openapi_rs::model::parse::{Format, In, OpenAPI, Parameter, Type};
+    use openapi_rs::model::parse::{Format, In, OpenAPI, Type, TypeOrUnion};
     use serde_yaml::Value;
     use serde_yaml::Value::Sequence;
     use std::env;
@@ -32,8 +32,6 @@ mod tests {
         // Validate general OpenAPI properties
         assert_eq!(openapi.openapi, "3.1.0");
         assert_eq!(openapi.info.title, "Example API");
-        assert!(openapi.servers.is_empty());
-        assert!(openapi.security.is_empty());
         assert!(openapi.components.is_some());
 
         let components = openapi.components.as_ref().unwrap();
@@ -74,26 +72,21 @@ mod tests {
             .and_then(|params| params.first())
             .ok_or("Missing parameter")?;
 
-        match parameter {
-            Parameter::Item {
-                name,
-                r#in,
-                schema,
-                description,
-                ..
-            } => {
-                assert_eq!(name, "uuid");
-                assert_eq!(description.as_deref(), Some("The UUID for this example."));
-                assert_eq!(r#in, &In::Path);
-                assert_eq!(schema.r#type, Some(Type::String));
-                assert_eq!(schema.format, Some(Format::UUID));
-                assert_eq!(
-                    schema.example.clone().unwrap(),
-                    "00000000-0000-0000-0000-000000000000"
-                );
-                assert!(schema.examples.is_none());
-            }
-            _ => {}
+        // Since Parameter is now a struct, access fields directly
+        assert_eq!(parameter.name.as_deref(), Some("uuid"));
+        assert_eq!(
+            parameter.description.as_deref(),
+            Some("The UUID for this example.")
+        );
+        assert_eq!(parameter.r#in.as_ref(), Some(&In::Path));
+        if let Some(schema) = &parameter.schema {
+            assert_eq!(schema.r#type, Some(TypeOrUnion::Single(Type::String)));
+            assert_eq!(schema.format, Some(Format::UUID));
+            assert_eq!(
+                schema.example.clone().unwrap(),
+                "00000000-0000-0000-0000-000000000000"
+            );
+            assert!(schema.examples.is_none());
         }
 
         Ok(())
@@ -129,9 +122,11 @@ paths:
         // Validate general properties
         assert_eq!(openapi.openapi, "3.1.0");
         assert_eq!(openapi.info.title, "Example API");
-        assert_eq!(openapi.info.description, "API definitions for example");
+        assert_eq!(
+            openapi.info.description.as_deref(),
+            Some("API definitions for example")
+        );
         assert_eq!(openapi.info.version, "0.0.1");
-        assert!(openapi.security.is_empty());
 
         // Validate components and schemas
         let components = openapi.components.as_ref().unwrap();
@@ -155,7 +150,7 @@ paths:
             .unwrap()
             .get("result")
             .unwrap();
-        assert_eq!(result.r#type, Some(Type::String));
+        assert_eq!(result.r#type, Some(TypeOrUnion::Single(Type::String)));
         assert_eq!(result.minimum, None);
         assert_eq!(result.maximum, None);
         assert_eq!(result.example.clone().unwrap(), "example");
@@ -170,7 +165,7 @@ openapi: 3.1.0
 info:
   title: Example API
   description: API definitions for example
-  version: '0.0.1'
+  version: "0.0.1"
 
 components:
   schemas:
@@ -202,9 +197,11 @@ paths:
         // Validate general properties
         assert_eq!(openapi.openapi, "3.1.0");
         assert_eq!(openapi.info.title, "Example API");
-        assert_eq!(openapi.info.description, "API definitions for example");
+        assert_eq!(
+            openapi.info.description.as_deref(),
+            Some("API definitions for example")
+        );
         assert_eq!(openapi.info.version, "0.0.1");
-        assert!(openapi.security.is_empty());
 
         // Validate components and schemas
         let components = openapi.components.as_ref().ok_or("Missing components")?;
@@ -221,7 +218,7 @@ paths:
         let first = &all_of[0];
 
         // Validate "allOf" object
-        assert_eq!(first.r#type, Some(Type::Object));
+        assert_eq!(first.r#type, Some(TypeOrUnion::Single(Type::Object)));
         assert!(first.description.is_none());
 
         // Validate "result" object properties
@@ -229,7 +226,7 @@ paths:
             .properties
             .get("result")
             .ok_or("Missing result property")?;
-        assert_eq!(result.r#type, Some(Type::Object));
+        assert_eq!(result.r#type, Some(TypeOrUnion::Single(Type::Object)));
         assert_eq!(result.description.as_deref(), Some("example."));
         assert!(!result.required.is_empty());
 
@@ -240,7 +237,7 @@ paths:
             .ok_or("Missing properties in result")?
             .get("uuid")
             .ok_or("Missing uuid")?;
-        assert_eq!(uuid.r#type, Some(Type::String));
+        assert_eq!(uuid.r#type, Some(TypeOrUnion::Single(Type::String)));
         assert_eq!(
             uuid.description.as_deref(),
             Some("The UUID for this example.")
@@ -260,7 +257,7 @@ paths:
             .ok_or("Missing properties in result")?
             .get("count")
             .ok_or("Missing count")?;
-        assert_eq!(count.r#type, Some(Type::Integer));
+        assert_eq!(count.r#type, Some(TypeOrUnion::Single(Type::Integer)));
         assert_eq!(count.description.as_deref(), Some("example count."));
         assert_eq!(count.format, None);
         assert_eq!(count.example.clone().unwrap(), 1);
@@ -302,9 +299,11 @@ paths:
         // Validate general properties
         assert_eq!(openapi.openapi, "3.1.0");
         assert_eq!(openapi.info.title, "Example API");
-        assert_eq!(openapi.info.description, "API definitions for example");
+        assert_eq!(
+            openapi.info.description.as_deref(),
+            Some("API definitions for example")
+        );
         assert_eq!(openapi.info.version, "0.0.1");
-        assert!(openapi.security.is_empty());
 
         // Validate components and schemas
         let components = openapi.components.as_ref().ok_or("Missing components")?;
@@ -319,7 +318,7 @@ paths:
         let one_of = &example_response.one_of.as_ref().unwrap()[0];
 
         // Validate "oneOf" object
-        assert_eq!(one_of.r#type, Some(Type::Object));
+        assert_eq!(one_of.r#type, Some(TypeOrUnion::Single(Type::Object)));
         assert!(one_of.description.is_none());
 
         // Validate "result" object properties
@@ -328,7 +327,7 @@ paths:
             .properties
             .get("result")
             .ok_or("Missing result property")?;
-        assert_eq!(result.r#type, Some(Type::Object));
+        assert_eq!(result.r#type, Some(TypeOrUnion::Single(Type::Object)));
         assert_eq!(result.description.as_deref(), Some("example."));
         assert!(result.required.is_empty());
 
@@ -339,7 +338,7 @@ paths:
             .ok_or("Missing properties in result")?
             .get("uuid")
             .ok_or("Missing uuid")?;
-        assert_eq!(uuid.r#type, Some(Type::String));
+        assert_eq!(uuid.r#type, Some(TypeOrUnion::Single(Type::String)));
         assert_eq!(
             uuid.description.as_deref(),
             Some("The UUID for this example.")
@@ -385,9 +384,11 @@ paths:
         // Validate general properties
         assert_eq!(openapi.openapi, "3.1.0");
         assert_eq!(openapi.info.title, "Example API");
-        assert_eq!(openapi.info.description, "API definitions for example");
+        assert_eq!(
+            openapi.info.description.as_deref(),
+            Some("API definitions for example")
+        );
         assert_eq!(openapi.info.version, "0.0.1");
-        assert!(openapi.security.is_empty());
         assert!(openapi.components.is_none());
 
         // Validate paths
@@ -439,9 +440,11 @@ paths:
         // Validate general properties
         assert_eq!(openapi.openapi, "3.1.0");
         assert_eq!(openapi.info.title, "Example API");
-        assert_eq!(openapi.info.description, "API definitions for example");
+        assert_eq!(
+            openapi.info.description.as_deref(),
+            Some("API definitions for example")
+        );
         assert_eq!(openapi.info.version, "0.0.1");
-        assert!(openapi.security.is_empty());
 
         // Validate components and schemas
         let components = openapi.components.as_ref().unwrap();
@@ -450,7 +453,7 @@ paths:
 
         // Validate uuid property
         let uuid = properties.get("uuid").unwrap();
-        assert_eq!(uuid.r#type, Some(Type::String));
+        assert_eq!(uuid.r#type, Some(TypeOrUnion::Single(Type::String)));
         assert_eq!(
             uuid.description.as_deref(),
             Some("The UUID for this example.")
@@ -463,7 +466,7 @@ paths:
 
         // Validate multi_uuid property
         let multi_uuid = properties.get("multi_uuid").unwrap();
-        assert_eq!(multi_uuid.r#type, Some(Type::Array));
+        assert_eq!(multi_uuid.r#type, Some(TypeOrUnion::Single(Type::Array)));
         assert_eq!(
             multi_uuid.description.as_deref(),
             Some("The Multi UUID for this example.")

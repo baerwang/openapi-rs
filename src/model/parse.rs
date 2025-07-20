@@ -28,8 +28,6 @@ pub struct OpenAPI {
     pub servers: Vec<ServerObject>,
     pub paths: HashMap<String, PathItem>,
     pub components: Option<ComponentsObject>,
-    #[serde(default)]
-    pub security: Vec<HashMap<String, SecurityRequirementObject>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,7 +86,7 @@ pub struct SecurityRequirementObject {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InfoObject {
     pub title: String,
-    pub description: String,
+    pub description: Option<String>,
     pub version: String,
 }
 
@@ -102,36 +100,42 @@ pub struct ServerObject {
 pub struct PathBase {
     pub summary: Option<String>,
     pub description: Option<String>,
+    #[serde(rename = "operationId")]
     pub operation_id: Option<String>,
     pub parameters: Option<Vec<Parameter>>,
     #[serde(rename = "requestBody")]
     pub request: Option<Request>,
+    #[serde(default)]
+    pub servers: Vec<ServerObject>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Parameter {
-    Ref {
-        #[serde(rename = "$ref")]
-        r#ref: String,
-    },
-    Item {
-        name: String,
-        #[serde(rename = "in")]
-        r#in: In,
-        #[serde(default)]
-        required: bool,
-        description: Option<String>,
-        example: Option<serde_yaml::Value>,
-        schema: Box<Schema>,
-    },
+pub struct Parameter {
+    #[serde(rename = "$ref")]
+    pub r#ref: Option<String>,
+    pub name: Option<String>,
+    #[serde(rename = "in")]
+    pub r#in: Option<In>,
+    #[serde(default)]
+    pub required: bool,
+    pub description: Option<String>,
+    pub example: Option<serde_yaml::Value>,
+    #[serde(rename = "type")]
+    pub r#type: Option<TypeOrUnion>,
+    pub r#enum: Option<Vec<serde_yaml::Value>>,
+    pub schema: Option<Box<Schema>>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_yaml::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Schema {
     #[serde(rename = "type")]
-    pub r#type: Option<Type>,
+    pub r#type: Option<TypeOrUnion>,
     pub format: Option<Format>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub r#enum: Option<Vec<serde_yaml::Value>>,
     pub properties: Option<HashMap<String, Properties>>,
     pub example: Option<serde_yaml::Value>,
     pub examples: Option<Vec<String>>,
@@ -141,6 +145,19 @@ pub struct Schema {
     pub all_of: Option<Vec<ComponentProperties>>,
     #[serde(rename = "oneOf")]
     pub one_of: Option<Vec<ComponentProperties>>,
+    pub items: Option<Box<Schema>>,
+    #[serde(default)]
+    pub required: Vec<String>,
+    #[serde(rename = "minItems")]
+    pub min_items: Option<u64>,
+    #[serde(rename = "maxItems")]
+    pub max_items: Option<u64>,
+    #[serde(rename = "minLength")]
+    pub min_length: Option<u64>,
+    #[serde(rename = "maxLength")]
+    pub max_length: Option<u64>,
+    pub minimum: Option<f64>,
+    pub maximum: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -166,7 +183,7 @@ pub struct ComponentSchemaBase {
     pub title: Option<String>,
     pub description: Option<String>,
     #[serde(rename = "type")]
-    pub r#type: Option<Type>,
+    pub r#type: Option<TypeOrUnion>,
     pub items: Option<Box<ComponentSchemaBase>>,
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
@@ -180,7 +197,7 @@ pub struct ComponentSchemaBase {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentProperties {
     #[serde(rename = "type")]
-    pub r#type: Option<Type>,
+    pub r#type: Option<TypeOrUnion>,
     pub description: Option<String>,
     #[serde(default)]
     pub properties: HashMap<String, Properties>,
@@ -191,7 +208,7 @@ pub struct ComponentProperties {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Properties {
     #[serde(rename = "type")]
-    pub r#type: Option<Type>,
+    pub r#type: Option<TypeOrUnion>,
     pub description: Option<String>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
@@ -199,8 +216,13 @@ pub struct Properties {
     pub min_length: Option<u64>,
     #[serde(rename = "maxLength")]
     pub max_length: Option<u64>,
+    #[serde(rename = "minItems")]
+    pub min_items: Option<u64>,
+    #[serde(rename = "maxItems")]
+    pub max_items: Option<u64>,
     pub minimum: Option<f64>,
     pub maximum: Option<f64>,
+    pub items: Option<Box<Properties>>,
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
     pub required: Vec<String>,
@@ -208,7 +230,12 @@ pub struct Properties {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentsObject {
+    #[serde(default)]
     pub schemas: HashMap<String, ComponentSchemaBase>,
+    #[serde(default)]
+    pub parameters: HashMap<String, Parameter>,
+    #[serde(rename = "requestBodies", default)]
+    pub request_bodies: HashMap<String, Request>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -223,6 +250,13 @@ pub enum Type {
     Null,
     Binary,
     Base64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TypeOrUnion {
+    Single(Type),
+    Union(Vec<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -244,6 +278,7 @@ pub enum Format {
     Email,
     Time,
     Date,
+    #[serde(rename = "date-time")]
     DateTime,
     UUID,
     Hostname,
@@ -252,4 +287,16 @@ pub enum Format {
     Password,
     #[serde(rename = "json-pointer")]
     JsonPointer,
+    Binary,
+    #[serde(rename = "external-ip")]
+    ExternalIP,
+    #[serde(rename = "int32")]
+    Int32,
+    #[serde(rename = "int64")]
+    Int64,
+    Svg,
+    #[serde(rename = "url")]
+    Url,
+    #[serde(other)]
+    Unknown,
 }

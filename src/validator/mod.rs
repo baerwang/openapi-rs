@@ -18,13 +18,16 @@
 mod validator_test;
 
 use crate::model::parse;
-use crate::model::parse::{ComponentsObject, Format, In, OpenAPI, Properties, Request, Type};
+use crate::model::parse::{
+    ComponentsObject, Format, In, OpenAPI, Properties, Request, Type, TypeOrUnion,
+};
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::string::String;
 
 pub trait ValidateRequest {
     fn header(&self, _: &OpenAPI) -> Result<()>;
@@ -54,18 +57,17 @@ pub fn path(path: &str, uri: &str, open_api: &OpenAPI) -> Result<()> {
         .unwrap_or(&empty_vec);
 
     for parameter in parameters {
-        match parameter {
-            parse::Parameter::Item {
-                name, r#in, schema, ..
-            } => {
-                if *r#in != In::Path {
-                    continue;
-                }
-                validate_field_format(name, &Value::from(uri), schema.format.clone())?;
-            }
-            parse::Parameter::Ref { .. } => {
-                // todo
+        if parameter.r#ref.is_some() {
+            // TODO: handle parameter references
+            continue;
+        }
+
+        if let (Some(name), Some(r#in)) = (&parameter.name, &parameter.r#in) {
+            if *r#in != In::Path {
                 continue;
+            }
+            if let Some(schema) = &parameter.schema {
+                validate_field_format(name, &Value::from(uri), schema.format.clone())?;
             }
         }
     }
@@ -85,34 +87,37 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
     let mut requireds: HashSet<String> = HashSet::new();
 
     for parameter in parameters {
-        match parameter {
-            parse::Parameter::Item {
-                name,
-                r#in,
-                required,
-                schema,
-                ..
-            } => {
-                if *r#in != In::Query {
-                    continue;
-                }
-                match query_pairs.get(name) {
-                    Some(value) => {
-                        if *required && value.trim().is_empty() {
-                            return Err(anyhow!("This field [{}] is required", name));
-                        }
+        if parameter.r#ref.is_some() {
+            // TODO: handle parameter references
+            continue;
+        }
 
+        if let (Some(name), Some(r#in)) = (&parameter.name, &parameter.r#in) {
+            if *r#in != In::Query {
+                continue;
+            }
+
+            match query_pairs.get(name) {
+                Some(value) => {
+                    if parameter.required && value.trim().is_empty() {
+                        return Err(anyhow!("This field [{}] is required", name));
+                    }
+
+                    if let Some(schema) = &parameter.schema {
                         validate_field_format(
                             name,
                             &Value::from(value.as_str()),
                             schema.format.clone(),
                         )?;
                     }
-                    None if *required => {
-                        return Err(anyhow!("This field [{}] is required", name));
-                    }
-                    _ => {}
                 }
+                None if parameter.required => {
+                    return Err(anyhow!("This field [{}] is required", name));
+                }
+                _ => {}
+            }
+
+            if let Some(schema) = &parameter.schema {
                 for schema_ref in collect_refs(schema) {
                     if let Some(components) = &open_api.components {
                         let fields: Map<String, Value> = query_pairs
@@ -124,11 +129,6 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
                         )?);
                     }
                 }
-            }
-
-            parse::Parameter::Ref { .. } => {
-                // todo
-                continue;
             }
         }
     }
@@ -156,12 +156,12 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
             .flat_map(|media| collect_refs(&media.schema))
             .collect();
 
-        let _type: Option<Type> = open_api.components.as_ref().and_then(|components| {
+        let _type: Option<TypeOrUnion> = open_api.components.as_ref().and_then(|components| {
             refs.iter().find_map(|schema_ref| {
                 schema_ref
                     .rsplit('/')
                     .next()
-                    .and_then(|filename| components.schemas.get(filename))
+                    .and_then(|schema_name| components.schemas.get(schema_name))
                     .and_then(|schema| schema.r#type.clone())
             })
         });
@@ -187,14 +187,27 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
     Ok(())
 }
 
-fn ensure_type(actual: &Option<Type>, expected: Type) -> Result<()> {
-    if let Some(t) = actual {
-        if *t != expected {
-            return Err(anyhow!(
-                "Expected request body to be a {:?}, got {:?}",
-                expected,
-                t
-            ));
+fn ensure_type(actual: &Option<TypeOrUnion>, expected: Type) -> Result<()> {
+    if let Some(type_or_union) = actual {
+        match type_or_union {
+            TypeOrUnion::Single(t) => {
+                if *t != expected {
+                    return Err(anyhow!(
+                        "Expected request body to be a {:?}, got {:?}",
+                        expected,
+                        t
+                    ));
+                }
+            }
+            TypeOrUnion::Union(types) => {
+                if !types.contains(&expected) {
+                    return Err(anyhow!(
+                        "Expected request body to be a {:?}, but union types {:?} don't include it",
+                        expected,
+                        types
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -208,8 +221,9 @@ fn validate_map(
 ) -> Result<()> {
     for (key, media_type) in &request.content {
         if let Some(field) = fields.get(key) {
-            validate_field_type(key, field, media_type.schema.r#type.clone())?;
-            if media_type.schema.r#type == Some(Type::String) {
+            let type_or_union = media_type.schema.r#type.clone();
+            validate_field_type(key, field, type_or_union)?;
+            if media_type.schema.r#type == Some(TypeOrUnion::Single(Type::String)) {
                 validate_field_format(key, field, media_type.schema.format.clone())?;
             }
         }
@@ -282,46 +296,46 @@ fn validate_field_format(key: &str, value: &Value, format: Option<Format>) -> Re
     Ok(())
 }
 
-fn validate_field_type(key: &str, value: &Value, field_type: Option<Type>) -> Result<()> {
+fn validate_field_type(key: &str, value: &Value, field_type: Option<TypeOrUnion>) -> Result<()> {
     use Type::*;
 
     match field_type {
-        Some(Object) => {
+        Some(TypeOrUnion::Single(Object)) => {
             if !value.is_object() {
                 return Err(anyhow!("the value of '{}' must be an Object", key));
             }
         }
-        Some(String) => {
+        Some(TypeOrUnion::Single(String)) => {
             if !value.is_string() {
                 return Err(anyhow!("the value of '{}' must be a String", key));
             }
         }
-        Some(Integer) => {
+        Some(TypeOrUnion::Single(Integer)) => {
             if !value.is_i64() {
                 return Err(anyhow!("the value of '{}' must be an Integer", key));
             }
         }
-        Some(Number) => {
+        Some(TypeOrUnion::Single(Number)) => {
             if !value.is_number() {
                 return Err(anyhow!("the value of '{}' must be a Number", key));
             }
         }
-        Some(Array) => {
+        Some(TypeOrUnion::Single(Array)) => {
             if !value.is_array() {
                 return Err(anyhow!("the value of '{}' must be an Array", key));
             }
         }
-        Some(Boolean) => {
+        Some(TypeOrUnion::Single(Boolean)) => {
             if !value.is_boolean() {
                 return Err(anyhow!("the value of '{}' must be a Boolean", key));
             }
         }
-        Some(Null) => {
+        Some(TypeOrUnion::Single(Null)) => {
             if !value.is_null() {
                 return Err(anyhow!("the value of '{}' must be Null", key));
             }
         }
-        Some(Base64) => {
+        Some(TypeOrUnion::Single(Base64)) => {
             let str_val = value
                 .as_str()
                 .ok_or_else(|| anyhow!("the value of '{}' must be a string", key))?;
@@ -334,12 +348,182 @@ fn validate_field_type(key: &str, value: &Value, field_type: Option<Type>) -> Re
                 return Err(anyhow!("the value of '{}' must be valid Base64", key));
             }
         }
+        Some(TypeOrUnion::Single(Binary)) => {
+            if !value.is_string() {
+                return Err(anyhow!(
+                    "the value of '{}' must be a String for binary data",
+                    key
+                ));
+            }
+        }
+        Some(TypeOrUnion::Union(types)) => {
+            let mut valid = false;
+            for single_type in types {
+                if validate_single_type_match(value, &single_type) {
+                    valid = true;
+                    break;
+                }
+            }
+            if !valid {
+                return Err(anyhow!(
+                    "the value of '{}' must match one of the union types",
+                    key
+                ));
+            }
+        }
         None => {}
-        Some(unsupported) => {
+    }
+
+    Ok(())
+}
+
+fn validate_single_type_match(value: &Value, field_type: &Type) -> bool {
+    use Type::*;
+    match field_type {
+        Object => value.is_object(),
+        String => value.is_string(),
+        Integer => value.is_i64(),
+        Number => value.is_number(),
+        Array => value.is_array(),
+        Boolean => value.is_boolean(),
+        Null => value.is_null(),
+        Base64 => {
+            if let Some(str_val) = value.as_str() {
+                !str_val.trim().is_empty() && general_purpose::STANDARD.decode(str_val).is_ok()
+            } else {
+                false
+            }
+        }
+        Binary => value.is_string(),
+    }
+}
+
+fn validate_field_length_limit(key: &str, value: &Value, properties: &Properties) -> Result<()> {
+    use TypeOrUnion::*;
+
+    match &properties.r#type {
+        Some(Single(type_)) => {
+            validate_single_type(key, value, type_, properties)?;
+        }
+        Some(Union(types)) => {
+            validate_union_types(key, value, types, properties)?;
+        }
+        None => {}
+    }
+
+    Ok(())
+}
+
+fn validate_single_type(
+    key: &str,
+    value: &Value,
+    type_: &Type,
+    properties: &Properties,
+) -> Result<()> {
+    use Type::*;
+
+    match type_ {
+        String | Base64 | Binary => {
+            let str_val = value
+                .as_str()
+                .ok_or_else(|| anyhow!("The value of '{}' must be a String", key))?;
+            validate_string_length(key, str_val, properties)?;
+        }
+        Integer => {
+            let int_val = value
+                .as_i64()
+                .ok_or_else(|| anyhow!("The value of '{}' must be an Integer", key))?;
+            validate_numeric_range(key, int_val as f64, properties)?;
+        }
+        Number => {
+            let num_val = value
+                .as_f64()
+                .ok_or_else(|| anyhow!("The value of '{}' must be a Number", key))?;
+            validate_numeric_range(key, num_val, properties)?;
+        }
+        Array => {
+            if !value.is_array() {
+                return Err(anyhow!("The value of '{}' must be an Array", key));
+            }
+            let arr_len = value.as_array().unwrap().len();
+            validate_array_length(key, arr_len, properties)?;
+        }
+        Boolean => {
+            if !value.is_boolean() {
+                return Err(anyhow!("The value of '{}' must be a Boolean", key));
+            }
+        }
+        Null => {
+            if !value.is_null() {
+                return Err(anyhow!("The value of '{}' must be null", key));
+            }
+        }
+        Object => {
+            if !value.is_object() {
+                return Err(anyhow!("The value of '{}' must be an Object", key));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_union_types(
+    key: &str,
+    value: &Value,
+    types: &[Type],
+    properties: &Properties,
+) -> Result<()> {
+    let mut validation_errors = Vec::new();
+    let mut type_matched = false;
+
+    for type_ in types {
+        match validate_single_type(key, value, type_, properties) {
+            Ok(()) => {
+                type_matched = true;
+                break;
+            }
+            Err(e) => {
+                validation_errors.push(e.to_string());
+            }
+        }
+    }
+
+    if !type_matched {
+        let type_names: Vec<std::string::String> =
+            types.iter().map(|t| format!("{:?}", t)).collect();
+        return Err(anyhow!(
+            "The value of '{}' does not match any of the union types [{}]. Validation errors: {}",
+            key,
+            type_names.join(", "),
+            validation_errors.join("; ")
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_string_length(key: &str, str_val: &str, properties: &Properties) -> Result<()> {
+    let length = str_val.len();
+
+    if let Some(min) = properties.min_length {
+        if length < min as usize {
             return Err(anyhow!(
-                "Unsupported type '{:?}' for query parameter '{}'",
-                unsupported,
-                key
+                "The length of '{}' must be at least {} characters, but got {}",
+                key,
+                min,
+                length
+            ));
+        }
+    }
+
+    if let Some(max) = properties.max_length {
+        if length > max as usize {
+            return Err(anyhow!(
+                "The length of '{}' must be at most {} characters, but got {}",
+                key,
+                max,
+                length
             ));
         }
     }
@@ -347,70 +531,51 @@ fn validate_field_type(key: &str, value: &Value, field_type: Option<Type>) -> Re
     Ok(())
 }
 
-fn validate_field_length_limit(key: &str, value: &Value, properties: &Properties) -> Result<()> {
-    use Type::*;
-
-    match &properties.r#type {
-        Some(String) => {
-            let str_val = value
-                .as_str()
-                .ok_or_else(|| anyhow!("The value of '{}' must be a String", key))?;
-
-            if let Some(min) = properties.min_length {
-                if str_val.len() < min as usize {
-                    return Err(anyhow!("The length of '{}' must be at least {}", key, min));
-                }
-            }
-
-            if let Some(max) = properties.max_length {
-                if str_val.len() > max as usize {
-                    return Err(anyhow!("The length of '{}' must be at most {}", key, max));
-                }
-            }
-        }
-
-        Some(Integer) => {
-            let int_val = value
-                .as_i64()
-                .ok_or_else(|| anyhow!("The value of '{}' must be an Integer", key))?;
-
-            if let Some(min) = properties.minimum {
-                if int_val < min as i64 {
-                    return Err(anyhow!("The value of '{}' must be >= {}", key, min as i64));
-                }
-            }
-
-            if let Some(max) = properties.maximum {
-                if int_val > max as i64 {
-                    return Err(anyhow!("The value of '{}' must be <= {}", key, max as i64));
-                }
-            }
-        }
-
-        Some(Number) => {
-            let num_val = value
-                .as_f64()
-                .ok_or_else(|| anyhow!("The value of '{}' must be a Number", key))?;
-
-            if let Some(min) = properties.minimum {
-                if num_val < min {
-                    return Err(anyhow!("The value of '{}' must be >= {}", key, min));
-                }
-            }
-
-            if let Some(max) = properties.maximum {
-                if num_val > max {
-                    return Err(anyhow!("The value of '{}' must be <= {}", key, max));
-                }
-            }
-        }
-
-        None => {}
-        Some(other) => {
+fn validate_numeric_range(key: &str, value: f64, properties: &Properties) -> Result<()> {
+    if let Some(min) = properties.minimum {
+        if value < min {
             return Err(anyhow!(
-                "Unsupported type '{:?}' for field '{}'",
-                other,
-                key
+                "The value of '{}' must be >= {}, but got {}",
+                key,
+                min,
+                value
+            ));
+        }
+    }
+
+    if let Some(max) = properties.maximum {
+        if value > max {
+            return Err(anyhow!(
+                "The value of '{}' must be <= {}, but got {}",
+                key,
+                max,
+                value
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_array_length(key: &str, length: usize, properties: &Properties) -> Result<()> {
+    if let Some(min) = properties.min_items {
+        if length < min as usize {
+            return Err(anyhow!(
+                "The array '{}' must have at least {} items, but got {}",
+                key,
+                min,
+                length
+            ));
+        }
+    }
+
+    if let Some(max) = properties.max_items {
+        if length > max as usize {
+            return Err(anyhow!(
+                "The array '{}' must have at most {} items, but got {}",
+                key,
+                max,
+                length
             ));
         }
     }
@@ -460,7 +625,7 @@ fn validate_properties(
         for (key, prop) in properties {
             if let Some(value) = fields.get(key) {
                 validate_field_type(key, value, prop.r#type.clone())?;
-                if prop.r#type == Some(Type::String) {
+                if let Some(TypeOrUnion::Single(Type::String)) = prop.r#type {
                     validate_field_format(key, value, prop.format.clone())?;
                 }
                 validate_field_length_limit(key, value, prop)?;
