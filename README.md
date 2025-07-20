@@ -4,8 +4,6 @@
 
 ---
 
-## English
-
 A powerful Rust library for OpenAPI 3.1 specification parsing, validation, and request handling.
 
 ### 🚀 Features
