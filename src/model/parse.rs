@@ -61,16 +61,16 @@ impl OpenAPI {
         require_non_empty!(self.paths, "Paths are required");
         valid
             .method(self)
-            .map_err(|e| format!("Method validation failed: {}", e))?;
+            .map_err(|e| format!("Method validation failed: {e}"))?;
         valid
             .path(self)
-            .map_err(|e| format!("Path validation failed: {}", e))?;
+            .map_err(|e| format!("Path validation failed: {e}"))?;
         valid
             .query(self)
-            .map_err(|e| format!("Query validation failed: {}", e))?;
+            .map_err(|e| format!("Query validation failed: {e}"))?;
         valid
             .body(self)
-            .map_err(|e| format!("Body validation failed: {}", e))?;
+            .map_err(|e| format!("Body validation failed: {e}"))?;
         Ok(())
     }
 }

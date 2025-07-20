@@ -490,8 +490,7 @@ fn validate_union_types(
     }
 
     if !type_matched {
-        let type_names: Vec<std::string::String> =
-            types.iter().map(|t| format!("{:?}", t)).collect();
+        let type_names: Vec<String> = types.iter().map(|t| format!("{t:?}")).collect();
         return Err(anyhow!(
             "The value of '{}' does not match any of the union types [{}]. Validation errors: {}",
             key,
