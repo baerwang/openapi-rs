@@ -33,8 +33,6 @@ axum = "0.7"
 
 ### 🔧 使用方法
 
-#### 基本用法
-
 ```rust
 use openapi_rs::model::parse::OpenAPI;
 use openapi_rs::request::axum::RequestData;
@@ -87,47 +85,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 📋 **请求体验证**：JSON 格式的用户数据
 - 🏷️ **数据类型验证**：字符串、数字、布尔值、数组等
 - 📧 **格式验证**：Email、UUID、日期时间等
-- 🔒 **安全认证**：Bearer Token 认证
-
-#### Axum 集成示例
-
-```rust
-use openapi_rs::model::parse::OpenAPI;
-use openapi_rs::request::axum::{RequestData, Json};
-use axum::{Router, routing::get, response::IntoResponse};
-
-#[derive(Debug, serde::Deserialize)]
-struct User {
-    name: String,
-    email: String,
-    age: Option<u32>,
-}
-
-async fn create_user(Json(payload): Json<User>) -> impl IntoResponse {
-    // 处理用户创建逻辑
-    (axum::http::StatusCode::CREATED, format!("User {} created", payload.name))
-}
-
-fn app() -> Router {
-    Router::new()
-        .route("/users", get(create_user))
-}
-
-#[tokio::main]
-async fn main() {
-    // 从 YAML 文件解析 OpenAPI 规范
-    let content = std::fs::read_to_string("examples/api.yaml").expect("无法读取文件");
-    let openapi = OpenAPI::yaml(&content).expect("解析 OpenAPI 规范失败");
-
-    // 启动 Axum 应用
-    let app = app();
-    println!("Listening on http://127.0.0.1:3000");
-    axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
-}
-```
 
 ### 🎯 支持的验证类型
 

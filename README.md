@@ -33,8 +33,6 @@ axum = "0.7"
 
 ### 🔧 Usage
 
-#### Basic Usage
-
 ```rust
 use openapi_rs::model::parse::OpenAPI;
 use openapi_rs::request::axum::RequestData;
@@ -88,29 +86,6 @@ featuring:
 - 📋 **Request Body Validation**: JSON formatted user data
 - 🏷️ **Data Type Validation**: Strings, numbers, booleans, arrays
 - 📧 **Format Validation**: Email, UUID, date-time formats
-- 🔒 **Security Authentication**: Bearer Token authentication
-
-#### Axum Integration
-
-The library provides seamless integration with the Axum framework, enabling easy validation of requests in your Axum
-handlers. Here's an example:
-
-```rust
-use axum::{
-    handler::get,
-    Router,
-};
-use openapi_rs::request::axum::RequestData;
-
-async fn users_handler(request_data: RequestData) -> String {
-    // Your handler logic here
-    format!("User request received: {:?}", request_data)
-}
-
-fn app() -> Router {
-    Router::new().route("/users", get(users_handler))
-}
-```
 
 ### 🎯 Supported Validation Types
 
