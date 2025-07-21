@@ -573,6 +573,8 @@ components:
   schemas:
     ExampleRequest:
       type: array
+      minItems: 1
+      maxItems: 2
       items:
         properties:
           name:
@@ -637,7 +639,106 @@ paths:
                 assert: false,
             },
             Tests {
+                value: r#"[]"#,
+                assert: false,
+            },
+            Tests {
+                value: r#"[{"name":"example-100","age":1},{"name":"example-101","age":2},{"name":"example-102","age":2}]"#,
+                assert: false,
+            },
+            Tests {
                 value: r#"{"name":"example","age":1}"#,
+                assert: false,
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                openapi
+                    .validator(make_request_body_with_value(test.value))
+                    .is_ok(),
+                test.assert
+            );
+        }
+    }
+
+    #[test]
+    fn test_body_enum_validation() {
+        let content = r#"
+openapi: 3.1.0
+info:
+  title: Example API
+  description: API definitions for example
+  version: '0.0.1'
+  x-file-identifier: example
+
+components:
+  schemas:
+    ExampleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The Name for this example.
+          example: example
+          enum:
+            - example
+            - example-100
+            - example-101
+      required:
+        - name
+    ExampleResponse:
+      properties:
+        name:
+          type: string
+          description: The Name for this example.
+          example: example
+
+security: [ ]
+
+paths:
+  /example:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExampleRequest'
+      responses:
+        '200':
+          description: Post a Example response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExampleResponse'
+"#;
+
+        let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI content");
+
+        struct Tests {
+            value: &'static str,
+            assert: bool,
+        }
+
+        let tests: Vec<Tests> = vec![
+            Tests {
+                value: r#"{"name":"example"}"#,
+                assert: true,
+            },
+            Tests {
+                value: r#"{"name":"example-100"}"#,
+                assert: true,
+            },
+            Tests {
+                value: r#"{"name":"example-101"}"#,
+                assert: true,
+            },
+            Tests {
+                value: r#"{"name":"example-103"}"#,
+                assert: false,
+            },
+            Tests {
+                value: r#"[{"name":"example"}]"#,
                 assert: false,
             },
         ];

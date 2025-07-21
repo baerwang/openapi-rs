@@ -192,6 +192,10 @@ pub struct ComponentSchemaBase {
     pub all_of: Option<Vec<ComponentProperties>>,
     #[serde(rename = "oneOf")]
     pub one_of: Option<Vec<ComponentProperties>>,
+    #[serde(rename = "minItems")]
+    pub min_items: Option<u64>,
+    #[serde(rename = "maxItems")]
+    pub max_items: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -226,6 +230,7 @@ pub struct Properties {
     pub properties: Option<HashMap<String, Properties>>,
     #[serde(default)]
     pub required: Vec<String>,
+    pub r#enum: Option<Vec<serde_yaml::Value>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
