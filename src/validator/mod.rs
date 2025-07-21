@@ -236,7 +236,7 @@ fn validate_array_items(
     for (index, item) in arr.iter().enumerate() {
         let map = item
             .as_object()
-            .with_context(|| format!("Array item at index {} must be an object", index))?;
+            .with_context(|| format!("Array item at index {index} must be an object"))?;
         validate_map(map, request, refs, open_api)?;
     }
     Ok(())
@@ -447,21 +447,21 @@ fn values_equal(json_val: &Value, yaml_val: &serde_yaml::Value) -> bool {
 
 fn format_yaml_value(value: &serde_yaml::Value) -> String {
     match value {
-        serde_yaml::Value::String(s) => format!("\"{}\"", s),
+        serde_yaml::Value::String(s) => format!("\"{s}\""),
         serde_yaml::Value::Number(n) => n.to_string(),
         serde_yaml::Value::Bool(b) => b.to_string(),
         serde_yaml::Value::Null => "null".to_string(),
-        _ => format!("{:?}", value),
+        _ => format!("{value:?}"),
     }
 }
 
 fn format_json_value(value: &Value) -> String {
     match value {
-        Value::String(s) => format!("\"{}\"", s),
+        Value::String(s) => format!("\"{s}\""),
         Value::Number(n) => n.to_string(),
         Value::Bool(b) => b.to_string(),
         Value::Null => "null".to_string(),
-        _ => format!("{:?}", value),
+        _ => format!("{value:?}"),
     }
 }
 fn validate_field_type(key: &str, value: &Value, field_type: Option<TypeOrUnion>) -> Result<()> {
