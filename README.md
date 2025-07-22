@@ -145,7 +145,7 @@ cargo test
 ### 📋 Roadmap
 
 - [x] **Parser**: OpenAPI 3.1 specification parsing
-- [ ] **Validator**: Complete request validation functionality
+- [x] **Validator**: Complete request validation functionality
 - [ ] **More Framework Integration**: Support for Warp, Actix-web, and other frameworks
 - [ ] **Performance Optimization**: Improve handling of large API specifications
 
