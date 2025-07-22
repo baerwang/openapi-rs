@@ -18,7 +18,7 @@
 #[cfg(test)]
 mod tests {
     use crate::model::parse::{
-        InfoObject, OpenAPI, Parameter, PathBase, PathItem, Schema, Type, TypeOrUnion, In
+        In, InfoObject, OpenAPI, Parameter, PathBase, PathItem, Schema, Type, TypeOrUnion,
     };
     use crate::validator::{query, validate_pattern};
     use serde_json::Value;
@@ -54,7 +54,7 @@ mod tests {
 
     fn create_base_openapi() -> OpenAPI {
         OpenAPI {
-            openapi: "3.0.0".to_string(),
+            openapi: "3.1.0".to_string(),
             info: InfoObject {
                 title: "Test API".to_string(),
                 description: None,
