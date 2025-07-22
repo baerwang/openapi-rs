@@ -16,5 +16,6 @@
  */
 
 pub mod model;
+pub mod observability;
 pub mod request;
 pub mod validator;

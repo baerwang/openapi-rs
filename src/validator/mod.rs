@@ -23,6 +23,7 @@ use crate::model::parse;
 use crate::model::parse::{
     ComponentsObject, Format, In, OpenAPI, Properties, Request, Type, TypeOrUnion,
 };
+use crate::observability::RequestContext;
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -38,6 +39,7 @@ pub trait ValidateRequest {
     fn query(&self, _: &OpenAPI) -> Result<()>;
     fn path(&self, _: &OpenAPI) -> Result<()>;
     fn body(&self, _: &OpenAPI) -> Result<()>;
+    fn context(&self) -> RequestContext;
 }
 
 pub fn method(path: &str, method: &str, open_api: &OpenAPI) -> Result<()> {

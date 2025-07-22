@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+use crate::observability::ValidationMetrics;
 use crate::validator::ValidateRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -55,6 +56,19 @@ impl OpenAPI {
     }
 
     pub fn validator(&self, valid: impl ValidateRequest) -> Result<(), String> {
+        let metrics = ValidationMetrics::from_context(&valid.context());
+
+        let result = self.perform_validation(valid);
+
+        match &result {
+            Ok(_) => metrics.record_success(),
+            Err(err) => metrics.record_failure(err.clone()),
+        }
+
+        result
+    }
+
+    fn perform_validation(&self, valid: impl ValidateRequest) -> Result<(), String> {
         require_non_empty!(self.openapi, "OpenAPI version is required");
         require_non_empty!(self.info.title, "Title is required");
         require_non_empty!(self.info.version, "Version is required");

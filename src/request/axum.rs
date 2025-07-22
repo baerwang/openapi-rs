@@ -16,6 +16,7 @@
  */
 
 use crate::model::parse::OpenAPI;
+use crate::observability::RequestContext;
 use crate::validator::{body, method, path, query, ValidateRequest};
 use anyhow::Result;
 use axum::body::{Body, Bytes};
@@ -89,5 +90,21 @@ impl ValidateRequest for RequestData {
             .ok_or_else(|| anyhow::anyhow!("Missing body"))?;
         let request_fields: Value = serde_json::from_slice(self_body)?;
         body(self.path.as_str(), request_fields, open_api)
+    }
+
+    fn context(&self) -> RequestContext {
+        RequestContext::new(
+            match *self.inner.method() {
+                axum::http::Method::GET => "GET".to_string(),
+                axum::http::Method::POST => "POST".to_string(),
+                axum::http::Method::PUT => "PUT".to_string(),
+                axum::http::Method::DELETE => "DELETE".to_string(),
+                axum::http::Method::PATCH => "PATCH".to_string(),
+                axum::http::Method::HEAD => "HEAD".to_string(),
+                axum::http::Method::OPTIONS => "OPTIONS".to_string(),
+                _ => "UNKNOWN".to_string(),
+            },
+            self.inner.uri().to_string(),
+        )
     }
 }
