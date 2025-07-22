@@ -44,13 +44,31 @@ impl ValidateRequest for RequestData {
     }
 
     fn query(&self, open_api: &OpenAPI) -> Result<()> {
-        let query_str = self.inner.uri().query().unwrap_or_default();
-
-        let query_pairs: HashMap<_, _> = url::form_urlencoded::parse(query_str.as_bytes())
-            .into_owned()
+        let uri_parts: Vec<&str> = self
+            .inner
+            .uri()
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or("")
+            .split('?')
             .collect();
 
-        query(self.path.as_str(), query_pairs, open_api)
+        let query_pairs = if uri_parts.len() > 1 {
+            uri_parts[1]
+                .split('&')
+                .filter_map(|pair| {
+                    let mut split = pair.split('=');
+                    match (split.next(), split.next()) {
+                        (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                        _ => None,
+                    }
+                })
+                .collect()
+        } else {
+            HashMap::new()
+        };
+
+        query(self.path.as_str(), &query_pairs, open_api)
     }
 
     fn path(&self, open_api: &OpenAPI) -> Result<()> {

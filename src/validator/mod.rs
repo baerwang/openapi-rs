@@ -68,7 +68,7 @@ pub fn path(path: &str, uri: &str, open_api: &OpenAPI) -> Result<()> {
                 continue;
             }
             if let Some(schema) = &parameter.schema {
-                validate_field_format(name, &Value::from(uri), schema.format.clone())?;
+                validate_field_format(name, &Value::from(uri), schema.format.as_ref())?;
             }
         }
     }
@@ -104,40 +104,48 @@ fn validate_required_fields(
     Ok(())
 }
 
-pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAPI) -> Result<()> {
-    let path_base = open_api.paths.get(path).context("Path not found")?;
+pub fn query(path: &str, query_pairs: &HashMap<String, String>, open_api: &OpenAPI) -> Result<()> {
+    let path_base = open_api
+        .paths
+        .get(path)
+        .context("Path not found in OpenAPI specification")?;
     let empty_vec = vec![];
-    let parameters = path_base
+
+    let all_parameters: Vec<&parse::Parameter> = path_base
         .operations
-        .get("get")
-        .and_then(|p| p.parameters.as_ref())
-        .unwrap_or(&empty_vec);
+        .values()
+        .flat_map(|op| op.parameters.as_ref().unwrap_or(&empty_vec))
+        .chain(path_base.parameters.as_ref().unwrap_or(&empty_vec))
+        .collect();
 
     let fields: Map<String, Value> = query_pairs
         .iter()
         .map(|(k, v)| (k.clone(), Value::from(v.clone())))
         .collect();
 
-    let mut requireds: HashSet<String> = HashSet::new();
+    let mut required_fields: HashSet<String> = HashSet::new();
 
-    for parameter in parameters {
+    for parameter in &all_parameters {
         if let Some(param_ref) = &parameter.r#ref {
             if let Some(components) = &open_api.components {
-                requireds.extend(extract_required_and_validate_props(
+                required_fields.extend(extract_required_and_validate_props(
                     &fields, param_ref, components,
                 )?);
             }
+            continue;
         }
 
-        let name = match (&parameter.name, &parameter.r#in) {
-            (Some(name), Some(In::Query)) => name,
-            _ => continue,
+        let (Some(name), Some(In::Query)) = (&parameter.name, &parameter.r#in) else {
+            continue;
         };
 
         match query_pairs.get(name) {
             Some(value) => {
                 if parameter.required && value.trim().is_empty() {
-                    return Err(anyhow!("This field [{}] is required", name));
+                    return Err(anyhow!(
+                        "Required query parameter '{}' cannot be empty",
+                        name
+                    ));
                 }
 
                 let json_value = Value::from(value.as_str());
@@ -146,37 +154,60 @@ pub fn query(path: &str, query_pairs: HashMap<String, String>, open_api: &OpenAP
                     validate_enum_value(name, &json_value, enum_values)?;
                 }
 
+                if let Some(param_type) = &parameter.r#type {
+                    validate_field_type(name, &json_value, Some(param_type.clone()))?;
+                }
+
                 if let Some(schema) = &parameter.schema {
-                    validate_field_format(name, &json_value, schema.format.clone())?;
+                    validate_field_format(name, &json_value, schema.format.as_ref())?;
 
                     if let Some(enum_values) = &schema.r#enum {
                         validate_enum_value(name, &json_value, enum_values)?;
                     }
 
-                    process_schema_refs(schema, &fields, &mut requireds, open_api)?;
+                    if let Some(schema_type) = &schema.r#type {
+                        validate_field_type(name, &json_value, Some(schema_type.clone()))?;
+                    }
+
+                    process_schema_refs(schema, &fields, &mut required_fields, open_api)?;
+
+                    validate_string_constraints(name, &json_value, schema)?;
+
+                    validate_numeric_constraints(name, &json_value, schema)?;
                 }
             }
             None => {
                 if parameter.required {
-                    return Err(anyhow!("This field [{}] is required", name));
+                    return Err(anyhow!("Required query parameter '{}' is missing", name));
                 }
             }
         }
     }
 
-    validate_required_fields(&requireds, &query_pairs)?;
+    validate_required_fields(&required_fields, query_pairs)?;
 
     Ok(())
 }
 
 pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
-    let path_base = open_api.paths.get(path).context("Path not found")?;
-    let request = path_base
-        .operations
-        .get("post")
-        .and_then(|p| p.request.as_ref());
+    let path_base = open_api
+        .paths
+        .get(path)
+        .context("Path not found in OpenAPI specification")?;
+
+    let request = path_base.operations.iter().find_map(|(method, operation)| {
+        if matches!(method.as_str(), "post" | "put" | "patch" | "delete") {
+            operation.request.as_ref()
+        } else {
+            None
+        }
+    });
 
     if let Some(request) = request {
+        if request.required && matches!(fields, Value::Null) {
+            return Err(anyhow!("Request body is required but was not provided"));
+        }
+
         let refs: Vec<&str> = request
             .content
             .values()
@@ -191,7 +222,7 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
         match fields {
             Value::Object(ref map) => {
                 ensure_type(&expected_type, Type::Object)?;
-                validate_map(map, request, &refs, open_api)?;
+                validate_object_body(map, request, &refs, open_api)?;
             }
             Value::Array(ref arr) => {
                 ensure_type(&expected_type, Type::Array)?;
@@ -202,10 +233,29 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
 
                 validate_array_items(arr, request, &refs, open_api)?;
             }
-            _ => {
-                return Err(anyhow!(
-                    "Unsupported request body type: must be object or array"
-                ));
+            Value::String(_) | Value::Number(_) | Value::Bool(_) => {
+                if let Some(type_or_union) = &expected_type {
+                    validate_field_type("request_body", &fields, Some(type_or_union.clone()))?;
+                }
+
+                for media_type in request.content.values() {
+                    if let Some(schema_type) = &media_type.schema.r#type {
+                        validate_field_type("request_body", &fields, Some(schema_type.clone()))?;
+                    }
+
+                    if let Some(format) = &media_type.schema.format {
+                        validate_field_format("request_body", &fields, Some(format))?;
+                    }
+
+                    if let Some(enum_values) = &media_type.schema.r#enum {
+                        validate_enum_value("request_body", &fields, enum_values)?;
+                    }
+                }
+            }
+            Value::Null => {
+                if request.required {
+                    return Err(anyhow!("Request body is required but null was provided"));
+                }
             }
         }
     }
@@ -225,6 +275,41 @@ fn get_schema_info<'a>(
                 .and_then(|schema_name| components.schemas.get(schema_name))
         })
     })
+}
+
+fn validate_object_body(
+    fields: &Map<String, Value>,
+    request: &Request,
+    refs: &[&str],
+    open_api: &OpenAPI,
+) -> Result<()> {
+    for (key, media_type) in &request.content {
+        if let Some(field) = fields.get(key) {
+            let type_or_union = media_type.schema.r#type.clone();
+            validate_field_type(key, field, type_or_union)?;
+            if media_type.schema.r#type == Some(TypeOrUnion::Single(Type::String)) {
+                validate_field_format(key, field, media_type.schema.format.as_ref())?;
+            }
+        }
+    }
+
+    let mut requireds = HashSet::new();
+
+    if let Some(components) = &open_api.components {
+        for schema_ref in refs {
+            requireds.extend(extract_required_and_validate_props(
+                fields, schema_ref, components,
+            )?);
+        }
+    }
+
+    for key in &requireds {
+        if !fields.contains_key(key) {
+            return Err(anyhow!("Missing required request body field: '{}'", key));
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_array_items(
@@ -306,7 +391,7 @@ fn validate_map(
             let type_or_union = media_type.schema.r#type.clone();
             validate_field_type(key, field, type_or_union)?;
             if media_type.schema.r#type == Some(TypeOrUnion::Single(Type::String)) {
-                validate_field_format(key, field, media_type.schema.format.clone())?;
+                validate_field_format(key, field, media_type.schema.format.as_ref())?;
             }
         }
     }
@@ -330,11 +415,11 @@ fn validate_map(
     Ok(())
 }
 
-fn validate_field_format(key: &str, value: &Value, format: Option<Format>) -> Result<()> {
-    let str_val = match value.as_str() {
-        Some(s) => s,
-        None => return Err(anyhow::anyhow!("this value must be string '{}'", key)),
+fn validate_field_format(key: &str, value: &Value, format: Option<&Format>) -> Result<()> {
+    let Some(str_val) = value.as_str() else {
+        return Err(anyhow::anyhow!("this value must be string '{}'", key));
     };
+
     match format {
         Some(Format::Email) => {
             if !validator::validate_email(str_val) {
@@ -480,12 +565,24 @@ fn validate_field_type(key: &str, value: &Value, field_type: Option<TypeOrUnion>
         }
         Some(TypeOrUnion::Single(Integer)) => {
             if !value.is_i64() {
-                return Err(anyhow!("the value of '{}' must be an Integer", key));
+                if let Some(str_val) = value.as_str() {
+                    if str_val.parse::<i64>().is_err() {
+                        return Err(anyhow!("the value of '{}' must be an Integer", key));
+                    }
+                } else {
+                    return Err(anyhow!("the value of '{}' must be an Integer", key));
+                }
             }
         }
         Some(TypeOrUnion::Single(Number)) => {
             if !value.is_number() {
-                return Err(anyhow!("the value of '{}' must be a Number", key));
+                if let Some(str_val) = value.as_str() {
+                    if str_val.parse::<f64>().is_err() {
+                        return Err(anyhow!("the value of '{}' must be a Number", key));
+                    }
+                } else {
+                    return Err(anyhow!("the value of '{}' must be a Number", key));
+                }
             }
         }
         Some(TypeOrUnion::Single(Array)) => {
@@ -495,7 +592,16 @@ fn validate_field_type(key: &str, value: &Value, field_type: Option<TypeOrUnion>
         }
         Some(TypeOrUnion::Single(Boolean)) => {
             if !value.is_boolean() {
-                return Err(anyhow!("the value of '{}' must be a Boolean", key));
+                if let Some(str_val) = value.as_str() {
+                    match str_val.to_lowercase().as_str() {
+                        "true" | "false" => {}
+                        _ => {
+                            return Err(anyhow!("the value of '{}' must be a Boolean", key));
+                        }
+                    }
+                } else {
+                    return Err(anyhow!("the value of '{}' must be a Boolean", key));
+                }
             }
         }
         Some(TypeOrUnion::Single(Null)) => {
@@ -549,7 +655,7 @@ fn validate_single_type_match(value: &Value, field_type: &Type) -> bool {
     use Type::*;
     match field_type {
         Object => value.is_object(),
-        String => value.is_string(),
+        String | Binary => value.is_string(),
         Integer => value.is_i64(),
         Number => value.is_number(),
         Array => value.is_array(),
@@ -562,7 +668,6 @@ fn validate_single_type_match(value: &Value, field_type: &Type) -> bool {
                 false
             }
         }
-        Binary => value.is_string(),
     }
 }
 
@@ -674,7 +779,7 @@ fn validate_string_length(key: &str, str_val: &str, properties: &Properties) -> 
     let length = str_val.len();
 
     if let Some(min) = properties.min_length {
-        if length < min as usize {
+        if length < usize::try_from(min)? {
             return Err(anyhow!(
                 "The length of '{}' must be at least {} characters, but got {}",
                 key,
@@ -685,7 +790,7 @@ fn validate_string_length(key: &str, str_val: &str, properties: &Properties) -> 
     }
 
     if let Some(max) = properties.max_length {
-        if length > max as usize {
+        if length > usize::try_from(max)? {
             return Err(anyhow!(
                 "The length of '{}' must be at most {} characters, but got {}",
                 key,
@@ -726,7 +831,7 @@ fn validate_numeric_range(key: &str, value: f64, properties: &Properties) -> Res
 
 fn validate_array_length(key: &str, length: usize, properties: &Properties) -> Result<()> {
     if let Some(min) = properties.min_items {
-        if length < min as usize {
+        if length < usize::try_from(min)? {
             return Err(anyhow!(
                 "The array '{}' must have at least {} items, but got {}",
                 key,
@@ -737,7 +842,7 @@ fn validate_array_length(key: &str, length: usize, properties: &Properties) -> R
     }
 
     if let Some(max) = properties.max_items {
-        if length > max as usize {
+        if length > usize::try_from(max)? {
             return Err(anyhow!(
                 "The array '{}' must have at most {} items, but got {}",
                 key,
@@ -794,7 +899,7 @@ fn validate_properties(
                 validate_field_type(key, value, prop.r#type.clone())?;
 
                 if let Some(TypeOrUnion::Single(Type::String)) = prop.r#type {
-                    validate_field_format(key, value, prop.format.clone())?;
+                    validate_field_format(key, value, prop.format.as_ref())?;
                 }
 
                 if let Some(enum_values) = &prop.r#enum {
@@ -830,4 +935,58 @@ fn collect_refs(schema: &parse::Schema) -> Vec<&str> {
         }
     }
     refs
+}
+
+fn validate_string_constraints(key: &str, value: &Value, schema: &parse::Schema) -> Result<()> {
+    if let Some(str_val) = value.as_str() {
+        if let Some(min_len) = schema.min_length {
+            if str_val.len() < usize::try_from(min_len)? {
+                return Err(anyhow!(
+                    "Parameter '{}' must be at least {} characters long, but got {}",
+                    key,
+                    min_len,
+                    str_val.len()
+                ));
+            }
+        }
+
+        if let Some(max_len) = schema.max_length {
+            if str_val.len() > usize::try_from(max_len)? {
+                return Err(anyhow!(
+                    "Parameter '{}' must be at most {} characters long, but got {}",
+                    key,
+                    max_len,
+                    str_val.len()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_numeric_constraints(key: &str, value: &Value, schema: &parse::Schema) -> Result<()> {
+    if let Some(num_val) = value.as_f64() {
+        if let Some(min) = schema.minimum {
+            if num_val < min {
+                return Err(anyhow!(
+                    "Parameter '{}' must be >= {}, but got {}",
+                    key,
+                    min,
+                    num_val
+                ));
+            }
+        }
+
+        if let Some(max) = schema.maximum {
+            if num_val > max {
+                return Err(anyhow!(
+                    "Parameter '{}' must be <= {}, but got {}",
+                    key,
+                    max,
+                    num_val
+                ));
+            }
+        }
+    }
+    Ok(())
 }

@@ -35,7 +35,7 @@ components: {}
         valid_query.insert("status".to_string(), "active".to_string());
         valid_query.insert("priority".to_string(), "2".to_string());
 
-        let result = query("/test", valid_query, &open_api);
+        let result = query("/test", &valid_query, &open_api);
         if let Err(ref e) = result {
             println!("Error message: {}", e);
         }
@@ -44,7 +44,7 @@ components: {}
         let mut invalid_query = HashMap::new();
         invalid_query.insert("status".to_string(), "unknown".to_string());
 
-        let result = query("/test", invalid_query, &open_api);
+        let result = query("/test", &invalid_query, &open_api);
         assert!(result.is_err(), "Invalid enum values should be rejected");
 
         let error_msg = result.unwrap_err().to_string();
@@ -87,7 +87,7 @@ components: {}
         let mut query_params = HashMap::new();
         query_params.insert("active".to_string(), "true".to_string());
 
-        let result = query("/test", query_params, &open_api);
+        let result = query("/test", &query_params, &open_api);
         assert!(
             result.is_ok(),
             "Valid boolean enum values should pass validation"
@@ -96,7 +96,7 @@ components: {}
         let mut invalid_query = HashMap::new();
         invalid_query.insert("active".to_string(), "maybe".to_string());
 
-        let result = query("/test", invalid_query, &open_api);
+        let result = query("/test", &invalid_query, &open_api);
         assert!(
             result.is_err(),
             "Invalid boolean enum values should be rejected"
