@@ -16,6 +16,7 @@
  */
 
 mod enum_test;
+mod pattern_test;
 mod validator_test;
 
 use crate::model::parse;
@@ -25,6 +26,7 @@ use crate::model::parse::{
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
+use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -169,12 +171,16 @@ pub fn query(path: &str, query_pairs: &HashMap<String, String>, open_api: &OpenA
                         validate_field_type(name, &json_value, Some(schema_type.clone()))?;
                     }
 
+                    validate_pattern(name, &json_value, schema.pattern.as_ref())?;
+
                     process_schema_refs(schema, &fields, &mut required_fields, open_api)?;
 
                     validate_string_constraints(name, &json_value, schema)?;
 
                     validate_numeric_constraints(name, &json_value, schema)?;
                 }
+
+                validate_pattern(name, &json_value, parameter.pattern.as_ref())?;
             }
             None => {
                 if parameter.required {
@@ -906,6 +912,8 @@ fn validate_properties(
                     validate_enum_value(key, value, enum_values)?;
                 }
 
+                validate_pattern(key, value, prop.pattern.as_ref())?;
+
                 validate_field_length_limit(key, value, prop)?;
             }
             validate_properties(fields, &prop.properties)?;
@@ -984,6 +992,31 @@ fn validate_numeric_constraints(key: &str, value: &Value, schema: &parse::Schema
                     key,
                     max,
                     num_val
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_pattern(key: &str, value: &Value, pattern: Option<&String>) -> Result<()> {
+    if let Some(pattern_str) = pattern {
+        if let Some(str_val) = value.as_str() {
+            let regex = Regex::new(pattern_str).map_err(|e| {
+                anyhow!(
+                    "Invalid regex pattern '{}' for field '{}': {}",
+                    pattern_str,
+                    key,
+                    e
+                )
+            })?;
+
+            if !regex.is_match(str_val) {
+                return Err(anyhow!(
+                    "Value '{}' for field '{}' does not match the required pattern '{}'",
+                    str_val,
+                    key,
+                    pattern_str
                 ));
             }
         }

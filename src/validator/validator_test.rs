@@ -752,4 +752,153 @@ paths:
             );
         }
     }
+
+    #[test]
+    fn test_pattern_validation() {
+        let content = r#"
+openapi: 3.1.0
+info:
+  title: Pattern Validation Test API
+  description: API for testing pattern validation
+  version: '1.0.0'
+
+components:
+  schemas:
+    UserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+          description: User email address
+        phone:
+          type: string
+          pattern: '^\+?1?[-.\s]?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}$'
+          description: User phone number
+        username:
+          type: string
+          pattern: '^[a-zA-Z0-9_]{3,20}$'
+          description: Username with alphanumeric and underscore only
+      required:
+        - email
+        - username
+
+paths:
+  /users:
+    post:
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            description: Numeric user ID
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9]{32}$'
+            description: 32-character alphanumeric token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+      responses:
+        '201':
+          description: User created successfully
+"#;
+
+        let openapi: OpenAPI = OpenAPI::yaml(content).expect("Failed to parse OpenAPI YAML");
+
+        fn make_request_with_query_and_body(query: &str, body: &str) -> request::axum::RequestData {
+            request::axum::RequestData {
+                path: "/users".to_string(),
+                inner: axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/users?{}", query))
+                    .body(axum::body::Body::from(body.to_string()))
+                    .unwrap(),
+                body: Some(Bytes::from(body.to_string())),
+            }
+        }
+
+        struct Tests {
+            query: &'static str,
+            body: &'static str,
+            assert: bool,
+            description: &'static str,
+        }
+
+        let tests: Vec<Tests> = vec![
+            // Valid patterns
+            Tests {
+                query: "userId=12345&token=abc123DEF456ghi789JKL012mno345PQ",
+                body: r#"{"email":"test@example.com","username":"valid_user123","phone":"(555) 123-4567"}"#,
+                assert: true,
+                description: "All valid patterns",
+            },
+            Tests {
+                query: "userId=999",
+                body: r#"{"email":"user@domain.org","username":"testuser"}"#,
+                assert: true,
+                description: "Required fields only with valid patterns",
+            },
+
+            // Invalid query patterns
+            Tests {
+                query: "userId=abc123",
+                body: r#"{"email":"test@example.com","username":"validuser"}"#,
+                assert: false,
+                description: "Invalid userId pattern (contains letters)",
+            },
+            Tests {
+                query: "userId=123&token=short",
+                body: r#"{"email":"test@example.com","username":"validuser"}"#,
+                assert: false,
+                description: "Invalid token pattern (too short)",
+            },
+
+            // Invalid body patterns
+            Tests {
+                query: "userId=123",
+                body: r#"{"email":"invalid-email","username":"validuser"}"#,
+                assert: false,
+                description: "Invalid email pattern",
+            },
+            Tests {
+                query: "userId=123",
+                body: r#"{"email":"test@example.com","username":"in valid"}"#,
+                assert: false,
+                description: "Invalid username pattern (contains space)",
+            },
+            Tests {
+                query: "userId=123",
+                body: r#"{"email":"test@example.com","username":"ab"}"#,
+                assert: false,
+                description: "Invalid username pattern (too short)",
+            },
+            Tests {
+                query: "userId=123",
+                body: r#"{"email":"test@example.com","username":"validuser","phone":"invalid-phone"}"#,
+                assert: false,
+                description: "Invalid phone pattern",
+            },
+        ];
+
+        for test in tests {
+            let result = openapi.validator(make_request_with_query_and_body(test.query, test.body));
+            assert_eq!(
+                result.is_ok(),
+                test.assert,
+                "Test failed: {} - Expected: {}, Got: {:?}",
+                test.description,
+                test.assert,
+                result
+            );
+        }
+    }
 }

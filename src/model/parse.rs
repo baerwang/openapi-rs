@@ -123,6 +123,7 @@ pub struct Parameter {
     #[serde(rename = "type")]
     pub r#type: Option<TypeOrUnion>,
     pub r#enum: Option<Vec<serde_yaml::Value>>,
+    pub pattern: Option<String>,
     pub schema: Option<Box<Schema>>,
     #[serde(flatten)]
     pub extra: HashMap<String, serde_yaml::Value>,
@@ -136,6 +137,7 @@ pub struct Schema {
     pub title: Option<String>,
     pub description: Option<String>,
     pub r#enum: Option<Vec<serde_yaml::Value>>,
+    pub pattern: Option<String>,
     pub properties: Option<HashMap<String, Properties>>,
     pub example: Option<serde_yaml::Value>,
     pub examples: Option<Vec<String>>,
@@ -216,6 +218,7 @@ pub struct Properties {
     pub description: Option<String>,
     pub format: Option<Format>,
     pub example: Option<serde_yaml::Value>,
+    pub pattern: Option<String>,
     #[serde(rename = "minLength")]
     pub min_length: Option<u64>,
     #[serde(rename = "maxLength")]
