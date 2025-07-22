@@ -685,8 +685,45 @@ components:
             - example
             - example-100
             - example-101
+        priority:
+          type: integer
+          description: Priority level
+          enum:
+            - 1
+            - 2
+            - 3
+            - 10
+        status:
+          type: string
+          description: Status of the example
+          enum:
+            - active
+            - inactive
+            - pending
+        enabled:
+          type: boolean
+          description: Whether the example is enabled
+          enum:
+            - true
+            - false
+        category:
+          type: number
+          description: Category identifier
+          enum:
+            - 1.0
+            - 2.5
+            - 3.14
+            - 10.0
+        mixed_type:
+          description: Mixed type enum (string and number)
+          enum:
+            - "text"
+            - 42
+            - "another_text"
+            - 99.99
       required:
         - name
+        - priority
     ExampleResponse:
       properties:
         name:
@@ -718,37 +755,106 @@ paths:
         struct Tests {
             value: &'static str,
             assert: bool,
+            description: &'static str,
         }
 
         let tests: Vec<Tests> = vec![
             Tests {
-                value: r#"{"name":"example"}"#,
+                value: r#"{"name":"example","priority":1}"#,
                 assert: true,
+                description: "Valid string and integer enum",
             },
             Tests {
-                value: r#"{"name":"example-100"}"#,
+                value: r#"{"name":"example-100","priority":2}"#,
                 assert: true,
+                description: "Valid string enum variant",
             },
             Tests {
-                value: r#"{"name":"example-101"}"#,
+                value: r#"{"name":"example-101","priority":3}"#,
                 assert: true,
+                description: "Another valid string enum variant",
             },
             Tests {
-                value: r#"{"name":"example-103"}"#,
+                value: r#"{"name":"example","priority":10,"status":"active","enabled":true}"#,
+                assert: true,
+                description: "Valid with optional boolean and string enums",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"category":2.5}"#,
+                assert: true,
+                description: "Valid with optional number enum",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"mixed_type":"text"}"#,
+                assert: true,
+                description: "Valid with mixed type enum (string)",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"mixed_type":42}"#,
+                assert: true,
+                description: "Valid with mixed type enum (number)",
+            },
+            Tests {
+                value: r#"{"name":"example-103","priority":1}"#,
                 assert: false,
+                description: "Invalid string enum value",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":5}"#,
+                assert: false,
+                description: "Invalid integer enum value",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"status":"running"}"#,
+                assert: false,
+                description: "Invalid status enum value",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"enabled":"yes"}"#,
+                assert: false,
+                description: "Invalid boolean enum value (string instead of boolean)",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"category":5.5}"#,
+                assert: false,
+                description: "Invalid number enum value",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"mixed_type":"invalid"}"#,
+                assert: false,
+                description: "Invalid mixed type enum value",
+            },
+            Tests {
+                value: r#"{"name":"example","priority":1,"mixed_type":100}"#,
+                assert: false,
+                description: "Invalid mixed type enum number value",
             },
             Tests {
                 value: r#"[{"name":"example"}]"#,
                 assert: false,
+                description: "Invalid JSON structure (array instead of object)",
+            },
+            Tests {
+                value: r#"{"name":"example"}"#,
+                assert: false,
+                description: "Missing required priority field",
+            },
+            Tests {
+                value: r#"{"priority":1}"#,
+                assert: false,
+                description: "Missing required name field",
             },
         ];
 
         for test in tests {
+            let result = openapi.validator(make_request_body_with_value(test.value));
             assert_eq!(
-                openapi
-                    .validator(make_request_body_with_value(test.value))
-                    .is_ok(),
-                test.assert
+                result.is_ok(),
+                test.assert,
+                "Test failed: {} - Expected: {}, Got: {:?}",
+                test.description,
+                test.assert,
+                result
             );
         }
     }
@@ -834,7 +940,6 @@ paths:
         }
 
         let tests: Vec<Tests> = vec![
-            // Valid patterns
             Tests {
                 query: "userId=12345&token=abc123DEF456ghi789JKL012mno345PQ",
                 body: r#"{"email":"test@example.com","username":"valid_user123","phone":"(555) 123-4567"}"#,
@@ -847,8 +952,6 @@ paths:
                 assert: true,
                 description: "Required fields only with valid patterns",
             },
-
-            // Invalid query patterns
             Tests {
                 query: "userId=abc123",
                 body: r#"{"email":"test@example.com","username":"validuser"}"#,
@@ -861,8 +964,6 @@ paths:
                 assert: false,
                 description: "Invalid token pattern (too short)",
             },
-
-            // Invalid body patterns
             Tests {
                 query: "userId=123",
                 body: r#"{"email":"invalid-email","username":"validuser"}"#,
