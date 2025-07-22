@@ -17,6 +17,7 @@ A powerful Rust library for OpenAPI 3.1 specification parsing, validation, and r
 - **Type Safety**: Strong typing support with union types and composite types
 - **Format Validation**: Support for various data format validations (Email, UUID, DateTime, etc.)
 - **Axum Integration**: Built-in integration support for the Axum framework
+- **Observability**: Built-in logging and metrics for validation operations with structured logs
 - **Detailed Error Messages**: Clear and informative validation error messages
 
 ### 📦 Installation
@@ -118,21 +119,43 @@ featuring:
 - Enum values (`enum`)
 - Pattern matching (`pattern`)
 
-### 📁 Project Structure
+### 📊 Observability
+
+This library provides built-in observability features to help monitor and debug validation operations in production
+environments.
+
+#### Features
+
+- **Structured Logging**: Automatic logging of validation operations with detailed metrics
+- **Performance Tracking**: Duration measurement for each validation request
+- **Error Reporting**: Detailed error logging for failed validations
+- **Request Context**: Method and path tracking for comprehensive monitoring
+
+#### Log Output Format
+
+The observability system generates structured logs with the following information:
+
+**Successful Validation:**
 
 ```
-src/
-├── lib.rs              # Library entry point
-├── model/              # Data models
-│   ├── mod.rs
-│   └── parse.rs        # OpenAPI parsing models
-├── request/            # Request handling
-│   ├── mod.rs
-│   └── axum.rs         # Axum framework integration
-└── validator/          # Validators
-    ├── mod.rs          # Core validation logic
-    └── validator_test.rs
+INFO openapi_validation method="GET" path="/example/{uuid}" success=true duration_ms=2 timestamp=1642752000000
 ```
+
+**Failed Validation:**
+
+```
+WARN openapi_validation method="GET" path="/example/{uuid}" success=false duration_ms=1 error="Invalid UUID format" timestamp=1642752000001
+```
+
+#### Running the Observability Example
+
+You can run the included observability example to see the logging in action:
+
+```bash
+RUST_LOG=debug cargo run --example observability_test
+```
+
+For detailed implementation, see: [observability_test.rs](examples/observability_test.rs)
 
 ### 🧪 Testing
 
