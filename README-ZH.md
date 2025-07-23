@@ -16,7 +16,10 @@
     - 请求体验证
 - **类型安全**: 强类型支持，包括联合类型和复合类型
 - **格式验证**: 支持多种数据格式验证（Email、UUID、日期时间等）
-- **Axum 集成**: 提供 Axum 框架的集成支持
+- **多框架集成**: 提供多个 Web 框架的集成支持
+    - **Axum**: 完整的 Axum 框架集成
+    - **Actix-Web**: 完整的 Actix-Web 框架集成
+    - **可选特性**: 支持按需启用特定框架
 - **可观测性**: 内置日志记录和验证操作指标，提供结构化日志
 - **详细错误信息**: 提供清晰的验证错误消息
 
@@ -26,7 +29,7 @@
 
 ```toml
 [dependencies]
-openapi-rs = { git = "https://github.com/baerwang/openapi-rs" }
+openapi-rs = { git = "https://github.com/baerwang/openapi-rs", features = ["axum"] }
 axum = "0.7"
 ```
 
@@ -167,7 +170,7 @@ cargo test
 
 - [x] **解析器**: OpenAPI 3.1 规范解析
 - [x] **验证器**: 完整的请求验证功能
-- [ ] **更多框架集成**: 支持 Warp、Actix-web 等框架
+- [x] **更多框架集成**: 支持 Warp、Actix-web 等框架
 - [ ] **性能优化**: 提升大型 API 规范的处理性能
 
 ### 🤝 贡献

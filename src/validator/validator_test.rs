@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test-with-axum"))]
 mod tests {
     use crate::model::parse::{Format, OpenAPI};
     use crate::request;

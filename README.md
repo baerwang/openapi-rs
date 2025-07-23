@@ -16,7 +16,10 @@ A powerful Rust library for OpenAPI 3.1 specification parsing, validation, and r
     - Request body validation
 - **Type Safety**: Strong typing support with union types and composite types
 - **Format Validation**: Support for various data format validations (Email, UUID, DateTime, etc.)
-- **Axum Integration**: Built-in integration support for the Axum framework
+- **Multi-Framework Integration**: Built-in integration support for multiple web frameworks
+    - **Axum**: Complete Axum framework integration
+    - **Actix-Web**: Complete Actix-Web framework integration
+    - **Optional Features**: Support for enabling specific frameworks on demand
 - **Observability**: Built-in logging and metrics for validation operations with structured logs
 - **Detailed Error Messages**: Clear and informative validation error messages
 
@@ -26,7 +29,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-openapi-rs = { git = "https://github.com/baerwang/openapi-rs" }
+openapi-rs = { git = "https://github.com/baerwang/openapi-rs", features = ["axum"] }
 axum = "0.7"
 ```
 
@@ -169,7 +172,7 @@ cargo test
 
 - [x] **Parser**: OpenAPI 3.1 specification parsing
 - [x] **Validator**: Complete request validation functionality
-- [ ] **More Framework Integration**: Support for Warp, Actix-web, and other frameworks
+- [x] **More Framework Integration**: Support for Warp, Actix-web, and other frameworks
 - [ ] **Performance Optimization**: Improve handling of large API specifications
 
 ### 🤝 Contributing

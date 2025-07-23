@@ -7,10 +7,15 @@ license = "Apache-2.0"
 repository = "https://github.com/baerwang/openapi-rs"
 publish = false
 
+[features]
+default = []
+axum = ["dep:axum"]
+actix-web = ["dep:actix-web"]
+test-with-axum = ["axum"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-axum = "0.7"
 anyhow = "1.0"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
@@ -21,3 +26,6 @@ base64 = "0.21"
 regex = "1.0"
 log = "0.4"
 env_logger = "0.10"
+futures-util = "0.3"
+axum = { version = "0.7", optional = true }
+actix-web = { version = "4", optional = true }
