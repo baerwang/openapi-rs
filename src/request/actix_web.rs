@@ -221,7 +221,7 @@ where
 
             if let Err(e) = openapi.validator(request_data) {
                 let validation_error =
-                    actix_web::error::ErrorBadRequest(format!("OpenAPI validation failed: {}", e));
+                    actix_web::error::ErrorBadRequest(format!("OpenAPI validation failed: {e}"));
 
                 let service_req = rebuild_service_request(http_req, &req_body);
                 return Ok(service_req
@@ -253,8 +253,7 @@ impl<S> OpenApiValidationMiddleware<S> {
 
         while let Some(chunk_result) = payload.next().await {
             let chunk = chunk_result.map_err(|e| {
-                log::error!("Error reading request chunk: {}", e);
-                actix_web::error::ErrorBadRequest("Failed to read request body")
+                actix_web::error::ErrorBadRequest(format!("Error reading request chunk: {e}"))
             })?;
 
             body.extend_from_slice(&chunk);
