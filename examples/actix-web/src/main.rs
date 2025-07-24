@@ -1,5 +1,6 @@
+use actix_web::{get, post};
 use actix_web::{web, App, HttpResponse, HttpServer, Result};
-use openapi_rs::request::actix_web::{OpenApiValidation, PreExtractedBody};
+use openapi_rs::request::actix_web::OpenApiValidation;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -24,7 +25,8 @@ struct ErrorResponse {
 }
 
 // User related handlers
-async fn get_users(query: web::Query<UserQuery>) -> Result<HttpResponse> {
+#[get("/users")]
+async fn get(query: web::Query<UserQuery>) -> Result<HttpResponse> {
     let page = query.page;
     let limit = query.limit;
     // Mock user list with pagination
@@ -47,19 +49,8 @@ async fn get_users(query: web::Query<UserQuery>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(all_users))
 }
 
-async fn create_user(body: PreExtractedBody) -> Result<HttpResponse> {
-    // Parse user data - validation already done by middleware
-    let user: User = match serde_json::from_slice(&body) {
-        Ok(user) => user,
-        Err(e) => {
-            return Ok(HttpResponse::BadRequest().json(ErrorResponse {
-                error: "Invalid JSON".to_string(),
-                message: format!("Failed to parse JSON: {}", e),
-                path: Some("/users".to_string()),
-            }));
-        }
-    };
-
+#[post("/users")]
+async fn create(user: web::Json<User>) -> Result<HttpResponse> {
     // Additional business logic validation if needed
     if user.name.trim().is_empty() {
         return Ok(HttpResponse::BadRequest().json(ErrorResponse {
@@ -70,7 +61,7 @@ async fn create_user(body: PreExtractedBody) -> Result<HttpResponse> {
     }
 
     // Mock user creation
-    let mut new_user = user;
+    let mut new_user = user.into_inner();
     new_user.id = Some(rand::random::<u32>() % 1000 + 1000);
 
     println!("Create user: {:?}", new_user);
@@ -100,8 +91,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(validation.clone())
-            .route("/users", web::get().to(get_users))
-            .route("/users", web::post().to(create_user))
+            .service(get)
+            .service(create)
             .route("/health", web::get().to(health_check))
     })
     .bind("127.0.0.1:8080")?

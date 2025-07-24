@@ -385,28 +385,3 @@ paths:
         assert!(OpenApiValidationMiddleware::<()>::should_extract_body(&req));
     }
 }
-
-#[derive(Debug)]
-pub struct PreExtractedBody(pub Bytes);
-
-impl actix_web::FromRequest for PreExtractedBody {
-    type Error = actix_web::Error;
-    type Future = std::future::Ready<Result<Self, Self::Error>>;
-
-    fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-        match req.extensions().get::<Bytes>() {
-            Some(bytes) => std::future::ready(Ok(PreExtractedBody(bytes.clone()))),
-            None => std::future::ready(Err(actix_web::error::ErrorBadRequest(
-                "Request body not found in extensions - ensure OpenApiValidation middleware is applied"
-            ))),
-        }
-    }
-}
-
-impl std::ops::Deref for PreExtractedBody {
-    type Target = Bytes;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
