@@ -464,6 +464,11 @@ paths:
                 value: "::",
                 assert: true,
             },
+            Tests {
+                f: Format::Email,
+                value: "example@example",
+                assert: true,
+            },
         ];
 
         for test in tests {
