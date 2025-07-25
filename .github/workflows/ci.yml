@@ -52,7 +52,7 @@ jobs:
         include:
           - os: macos-latest
           - os: ubuntu-latest
-    name: cargo clippy
+    name: cargo test
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
