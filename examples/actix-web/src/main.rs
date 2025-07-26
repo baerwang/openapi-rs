@@ -1,5 +1,6 @@
 use actix_web::{get, post};
 use actix_web::{web, App, HttpResponse, HttpServer, Result};
+use openapi_rs::observability::init_logger;
 use openapi_rs::request::actix_web::OpenApiValidation;
 use serde::{Deserialize, Serialize};
 
@@ -78,6 +79,8 @@ async fn health_check() -> Result<HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    init_logger();
+
     let content = std::fs::read_to_string("api.yaml")?;
     let validation = OpenApiValidation::from_yaml(&content)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
