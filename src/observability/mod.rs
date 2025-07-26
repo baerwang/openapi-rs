@@ -190,9 +190,9 @@ pub fn init_logger_with_config(config: LogConfig) {
                 format_str.push_str(&format!(" {}", record.target()));
             }
 
-            format_str.push_str(&format!(" - {}", message));
+            format_str.push_str(&format!(" - {message}"));
 
-            out.finish(format_args!("{}", format_str))
+            out.finish(format_args!("{format_str}"))
         })
         .level(log_level);
 
@@ -204,9 +204,9 @@ pub fn init_logger_with_config(config: LogConfig) {
     // File output
     if let Some(log_file) = &config.log_file {
         // Ensure log file directory exists
-        if let Some(parent) = std::path::Path::new(log_file).parent() {
+        if let Some(parent) = Path::new(log_file).parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("Failed to create log directory {:?}: {}", parent, e);
+                eprintln!("Failed to create log directory {parent:?}: {e}");
                 return;
             }
         }
@@ -216,7 +216,7 @@ pub fn init_logger_with_config(config: LogConfig) {
                 dispatch = dispatch.chain(file);
             }
             Err(e) => {
-                eprintln!("Failed to create log file {}: {}", log_file, e);
+                eprintln!("Failed to create log file {log_file}: {e}");
                 return;
             }
         }
@@ -224,8 +224,8 @@ pub fn init_logger_with_config(config: LogConfig) {
 
     // Apply configuration
     if let Err(e) = dispatch.apply() {
-        eprintln!("Failed to initialize logger: {}", e);
+        eprintln!("Failed to initialize logger: {e}");
     } else {
-        log::info!("Logger initialized with config: {:?}", config);
+        log::info!("Logger initialized with config: {config:?}");
     }
 }
