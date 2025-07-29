@@ -17,8 +17,8 @@ A powerful Rust library for OpenAPI 3.1 specification parsing, validation, and r
 - **Type Safety**: Strong typing support with union types and composite types
 - **Format Validation**: Support for various data format validations (Email, UUID, DateTime, etc.)
 - **Multi-Framework Integration**: Built-in integration support for multiple web frameworks
-    - **Axum**: Complete Axum framework integration
-    - **Actix-Web**: Complete Actix-Web framework integration
+    - [**Axum**](examples/axum): Complete Axum framework integration
+    - [**Actix-Web**](examples/actix-web): Complete Actix-Web framework integration
     - **Optional Features**: Support for enabling specific frameworks on demand
 - **Observability**: Built-in logging and metrics for validation operations with structured logs
 - **Detailed Error Messages**: Clear and informative validation error messages
