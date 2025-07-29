@@ -172,8 +172,8 @@ cargo test
 
 - [x] **Parser**: OpenAPI 3.1 specification parsing
 - [x] **Validator**: Complete request validation functionality
-- [x] **More Framework Integration**: Support for Warp, Actix-web, and other frameworks
-- [ ] **Performance Optimization**: Improve handling of large API specifications
+- [x] **More Framework Integration**: Support for Actix-web、Axum, and other frameworks
+- [x] **Performance Optimization**: Improve handling of large API specifications
 
 ### 🤝 Contributing
 
