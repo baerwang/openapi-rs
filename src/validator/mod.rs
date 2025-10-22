@@ -28,11 +28,11 @@ use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use regex::Regex;
-use validator::ValidateEmail;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::string::String;
+use validator::ValidateEmail;
 
 pub trait ValidateRequest {
     fn header(&self, _: &OpenAPI) -> Result<()>;
