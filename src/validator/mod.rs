@@ -28,6 +28,7 @@ use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use regex::Regex;
+use validator::ValidateEmail;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -430,7 +431,7 @@ fn validate_field_format(key: &str, value: &Value, format: Option<&Format>) -> R
 
     match format {
         Some(Format::Email) => {
-            if !validator::validate_email(str_val) {
+            if !str_val.validate_email() {
                 return Err(format_error("Email", key, str_val));
             }
         }
