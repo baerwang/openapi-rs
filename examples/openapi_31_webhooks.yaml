@@ -1,0 +1,573 @@
+# OpenAPI 3.1 Webhooks Example
+# Demonstrates the webhooks feature introduced in OpenAPI 3.1
+# Webhooks define incoming webhooks that the API can send to external services
+
+openapi: 3.1.0
+info:
+  title: E-Commerce API with Webhooks
+  description: |
+    A complete e-commerce API that sends webhooks for important events.
+    Webhooks allow external services to receive real-time notifications when
+    specific events occur in the system.
+  version: '1.0.0'
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging-api.example.com/v1
+    description: Staging server
+
+# === OpenAPI 3.1 Feature: Webhooks ===
+# Webhooks define incoming HTTP callbacks that the API will send to registered endpoints
+webhooks:
+  # Order created webhook - fired when a new order is placed
+  orderCreated:
+    post:
+      summary: New order created
+      description: |
+        This webhook is fired when a new order is successfully created.
+        The payload contains the complete order details including items,
+        pricing, and customer information.
+      operationId: orderCreated
+      tags:
+        - Webhooks
+        - Orders
+      requestBody:
+        required: true
+        description: Order creation event payload
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+            examples:
+              physical_product:
+                summary: Physical product order
+                value:
+                  event_id: evt_1234567890
+                  event_type: order.created
+                  timestamp: "2024-01-15T10:30:00Z"
+                  data:
+                    order_id: ord_abc123
+                    customer_id: cust_xyz789
+                    items:
+                      - product_id: prod_001
+                        name: "Wireless Headphones"
+                        quantity: 1
+                        unit_price: 79.99
+                      - product_id: prod_002
+                        name: "USB-C Cable"
+                        quantity: 2
+                        unit_price: 12.99
+                    subtotal: 105.97
+                    tax: 8.48
+                    total: 114.45
+                    shipping_address:
+                      street: "123 Main St"
+                      city: "San Francisco"
+                      state: "CA"
+                      postal_code: "94102"
+                      country: "US"
+              digital_product:
+                summary: Digital product order
+                value:
+                  event_id: evt_9876543210
+                  event_type: order.created
+                  timestamp: "2024-01-15T11:45:00Z"
+                  data:
+                    order_id: ord_def456
+                    customer_id: cust_ghi012
+                    items:
+                      - product_id: digital_001
+                        name: "Premium Subscription (Monthly)"
+                        quantity: 1
+                        unit_price: 19.99
+                    subtotal: 19.99
+                    tax: 0.00
+                    total: 19.99
+      responses:
+        '200':
+          description: Webhook received and processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+              example:
+                status: success
+                message: "Webhook received"
+        '202':
+          description: Webhook accepted for async processing
+        '400':
+          description: Invalid webhook payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Order status changed webhook
+  orderStatusChanged:
+    post:
+      summary: Order status updated
+      description: |
+        Fired when an order's status changes. Common status transitions:
+        pending -> processing -> shipped -> delivered
+        or pending -> cancelled
+      operationId: orderStatusChanged
+      tags:
+        - Webhooks
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_id:
+                  type: string
+                  description: Unique event identifier
+                event_type:
+                  type: string
+                  description: Type of event
+                  enum: [order.status_changed]
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    order_id:
+                      type: string
+                    old_status:
+                      type: string
+                      enum: [pending, processing, shipped, delivered, cancelled]
+                    new_status:
+                      type: string
+                      enum: [pending, processing, shipped, delivered, cancelled]
+                    reason:
+                      type: string
+                      description: Optional reason for status change
+              required:
+                - event_id
+                - event_type
+                - timestamp
+                - data
+      responses:
+        '200':
+          description: Webhook processed successfully
+
+  # Payment webhook
+  paymentCompleted:
+    post:
+      summary: Payment successfully processed
+      description: |
+        Fired when a payment is successfully completed.
+        This webhook can be used to trigger fulfillment processes.
+      operationId: paymentCompleted
+      tags:
+        - Webhooks
+        - Payments
+      parameters:
+        - name: X-Webhook-Timestamp
+          in: header
+          required: true
+          description: Unix timestamp of webhook delivery
+          schema:
+            type: integer
+        - name: X-Webhook-Signature
+          in: header
+          required: true
+          description: HMAC signature for webhook verification
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+      responses:
+        '200':
+          description: Webhook acknowledged
+
+  # Inventory alert webhook
+  inventoryLow:
+    post:
+      summary: Low inventory alert
+      description: |
+        Fired when a product's inventory falls below the defined threshold.
+        Useful for automated reordering workflows.
+      operationId: inventoryLow
+      tags:
+        - Webhooks
+        - Inventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_id:
+                  type: string
+                event_type:
+                  type: string
+                  enum: [inventory.low]
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    product_id:
+                      type: string
+                    product_name:
+                      type: string
+                    current_stock:
+                      type: integer
+                    threshold:
+                      type: integer
+                    location:
+                      type: string
+                      description: Warehouse or store location
+              required:
+                - event_id
+                - event_type
+                - data
+      responses:
+        '200':
+          description: Alert received
+
+paths:
+  /orders:
+    get:
+      summary: List orders
+      operationId: listOrders
+      tags:
+        - Orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, shipped, delivered, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  total:
+                    type: integer
+    post:
+      summary: Create a new order (triggers orderCreated webhook)
+      operationId: createOrder
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created successfully
+          headers:
+            Location:
+              description: URL of the new order
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{order_id}:
+    get:
+      summary: Get order by ID
+      operationId: getOrder
+      tags:
+        - Orders
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+
+  /webhooks:
+    get:
+      summary: List registered webhook endpoints
+      operationId: listWebhooks
+      tags:
+        - Webhooks
+      responses:
+        '200':
+          description: List of registered webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        url:
+                          type: string
+                          format: uri
+                        events:
+                          type: array
+                          items:
+                            type: string
+                        active:
+                          type: boolean
+    post:
+      summary: Register a new webhook endpoint
+      operationId: registerWebhook
+      tags:
+        - Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: The URL where webhooks will be sent
+                events:
+                  type: array
+                  items:
+                    type: string
+                    enum: [order.created, order.status_changed, payment.completed, inventory.low]
+                  description: Which events to subscribe to
+                secret:
+                  type: string
+                  description: Secret used to sign webhook payloads
+              required:
+                - url
+                - events
+      responses:
+        '201':
+          description: Webhook registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  url:
+                    type: string
+                  events:
+                    type: array
+                    items:
+                      type: string
+                  secret:
+                    type: string
+                    description: Only returned on creation
+
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: Unique order identifier
+        customer_id:
+          type: string
+          description: Customer who placed the order
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+              name:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+              unit_price:
+                type: number
+                format: float
+                minimum: 0
+        subtotal:
+          type: number
+          format: float
+          description: Subtotal before tax and shipping
+        tax:
+          type: number
+          format: float
+        shipping:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+          description: Final total including tax and shipping
+        status:
+          type: string
+          enum: [pending, processing, shipped, delivered, cancelled]
+          default: pending
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        shipping_address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            postal_code:
+              type: string
+            country:
+              type: string
+              format: iso3166-1-alpha-2
+      required:
+        - order_id
+        - customer_id
+        - items
+        - total
+        - status
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        customer_id:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+            required:
+              - product_id
+              - quantity
+          minItems: 1
+        shipping_address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            postal_code:
+              type: string
+            country:
+              type: string
+          required:
+            - street
+            - city
+            - postal_code
+            - country
+      required:
+        - customer_id
+        - items
+        - shipping_address
+
+    Payment:
+      type: object
+      properties:
+        payment_id:
+          type: string
+        order_id:
+          type: string
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+          default: USD
+        method:
+          type: string
+          enum: [credit_card, debit_card, paypal, bank_transfer]
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - payment_id
+        - order_id
+        - amount
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+        details:
+          type: object
+          description: Additional error details
+      required:
+        - error
+        - code
+
+tags:
+  - name: Orders
+    description: Order management operations
+  - name: Webhooks
+    description: Webhook configuration and management
+  - name: Payments
+    description: Payment processing
+  - name: Inventory
+    description: Inventory management

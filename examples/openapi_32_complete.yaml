@@ -1,0 +1,647 @@
+# Complete OpenAPI 3.2 Example
+# Demonstrates all OpenAPI 3.2 features in a single, comprehensive API specification
+
+openapi: 3.2.0
+
+# === OpenAPI 3.2 Feature: $self ===
+# Specifies the base URI for this API document
+$self: https://api.example.com/v3
+
+info:
+  title: Cloud Resource Management API
+  # === OpenAPI 3.2 Feature: info.summary ===
+  # A short summary of the API (distinct from description)
+  summary: Complete cloud infrastructure management API
+  description: |
+    This is a comprehensive API specification demonstrating all features
+    introduced in OpenAPI 3.2, including:
+    - `$self` field for base URI
+    - `info.summary` for short API description
+    - `querystring` parameter type for complex query parameters
+    - `query` HTTP method for complex resource queries
+
+  version: '3.0.0'
+  contact:
+    name: Cloud API Support
+    url: https://cloud.example.com/support
+    email: support@cloud.example.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: https://api.cloud.example.com/v3
+    description: Production server
+  - url: https://staging-api.cloud.example.com/v3
+    description: Staging server
+  - url: https://dev-api.cloud.example.com/v3
+    description: Development server
+
+tags:
+  - name: Instances
+    description: Virtual machine instance management
+  - name: Storage
+    description: Storage volumes and snapshots
+  - name: Networking
+    description: Network configuration
+  - name: Monitoring
+    description: Metrics and alerts
+  - name: Webhooks
+    description: Event notifications
+
+paths:
+  /instances:
+    # Traditional GET for simple listing
+    get:
+      summary: List instances
+      description: Get a list of all instances with simple filtering
+      operationId: listInstances
+      tags:
+        - Instances
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [running, stopped, pending, error]
+        - name: region
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of instances
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceList'
+
+    # === OpenAPI 3.2 Feature: QUERY HTTP Method ===
+    query:
+      summary: Complex instance query
+      description: |
+        Execute complex queries on instances with filtering, sorting,
+        aggregation, and faceting capabilities.
+      operationId: queryInstances
+      tags:
+        - Instances
+      parameters:
+        - name: include
+          in: query
+          description: Include related resources
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [storage, networking, tags, metrics]
+      requestBody:
+        required: true
+        description: Query DSL for complex instance queries
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              status_filter:
+                summary: Filter by instance status
+                value:
+                  filter:
+                    status:
+                      eq: "running"
+              resource_query:
+                summary: Query by resource type
+                value:
+                  filter:
+                    and:
+                      - instance_type:
+                          eq: "t3.medium"
+                      - vcpu_count:
+                          gte: 2
+                      - memory_gb:
+                          gte: 4
+                  sort:
+                    - field: "created_at"
+                      direction: "desc"
+              multi_region_facet:
+                summary: Multi-region faceted search
+                value:
+                  filter:
+                    status:
+                      in: ["running", "pending"]
+                  facet:
+                    - field: "region"
+                    - field: "instance_type"
+                    - field: "status"
+                  aggregation:
+                    - type: "sum"
+                      field: "monthly_cost"
+                      name: "total_monthly_cost"
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+
+    post:
+      summary: Create instance
+      operationId: createInstance
+      tags:
+        - Instances
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstanceCreateRequest'
+      responses:
+        '201':
+          description: Instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+
+  /instances/{instance_id}:
+    get:
+      summary: Get instance details
+      operationId: getInstance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Instance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+
+    delete:
+      summary: Delete instance
+      operationId: deleteInstance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Instance deleted
+
+  /volumes:
+    get:
+      summary: List storage volumes
+      operationId: listVolumes
+      tags:
+        - Storage
+      parameters:
+        # === OpenAPI 3.2 Feature: querystring parameter type ===
+        - name: filter
+          in: querystring
+          description: Complex filter for storage volumes
+          required: false
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [available, in-use, error, creating]
+                  size_gb:
+                    type: object
+                    properties:
+                      min:
+                        type: integer
+                      max:
+                        type: integer
+                  volume_type:
+                    type: string
+                  attached_to:
+                    type: string
+                    format: uuid
+                  tags:
+                    type: object
+                    additionalProperties:
+                      type: string
+              examples:
+                size_filter:
+                  summary: Filter by size
+                  value:
+                    size_gb:
+                      min: 100
+                      max: 1000
+                attached_filter:
+                  summary: Filter attached volumes
+                  value:
+                    status: "in-use"
+                    size_gb:
+                      gte: 500
+        - name: sort
+          in: querystring
+          description: Sort criteria
+          required: false
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    direction:
+                      type: string
+                      enum: [asc, desc]
+              examples:
+                sort_by_size:
+                  summary: Sort by size descending
+                  value:
+                    - field: "size_gb"
+                      direction: "desc"
+      responses:
+        '200':
+          description: Volume list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeList'
+
+    query:
+      summary: Complex volume queries
+      operationId: queryVolumes
+      tags:
+        - Storage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+
+  /metrics/query:
+    get:
+      summary: Query metrics with complex parameters
+      operationId: queryMetrics
+      tags:
+        - Monitoring
+      parameters:
+        - name: query
+          in: querystring
+          description: |
+            Complex metric query specification.
+            Supports multiple metrics, time ranges, and aggregations.
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricQuery'
+              examples:
+                cpu_usage:
+                  summary: CPU usage query
+                  value:
+                    metrics:
+                      - name: "cpu.utilization"
+                        aggregation: "avg"
+                        group_by: ["instance_id"]
+                    time_range:
+                      start: "2024-01-01T00:00:00Z"
+                      end: "2024-01-01T23:59:59Z"
+                      interval: "5m"
+                multi_metric:
+                  summary: Multiple metrics
+                  value:
+                    metrics:
+                      - name: "cpu.utilization"
+                        aggregation: "avg"
+                        alias: "cpu_avg"
+                      - name: "memory.utilization"
+                        aggregation: "avg"
+                        alias: "mem_avg"
+                      - name: "disk.iops"
+                        aggregation: "sum"
+                        alias: "total_iops"
+                    time_range:
+                      duration: "1h"
+                      interval: "1m"
+      responses:
+        '200':
+          description: Metric data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricQueryResponse'
+
+components:
+  schemas:
+    Instance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [running, stopped, pending, error]
+        instance_type:
+          type: string
+        region:
+          type: string
+        zone:
+          type: string
+        vcpu_count:
+          type: integer
+        memory_gb:
+          type: integer
+        storage_volumes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Volume'
+        network_interfaces:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              ip_address:
+                type: string
+                format: ipv4
+              public_ip:
+                type: string
+                format: ipv4
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        monthly_cost:
+          type: number
+          format: float
+      required:
+        - id
+        - name
+        - status
+        - instance_type
+
+    InstanceList:
+      type: object
+      properties:
+        instances:
+          type: array
+          items:
+            $ref: '#/components/schemas/Instance'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    InstanceCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        instance_type:
+          type: string
+        region:
+          type: string
+        zone:
+          type: string
+        image_id:
+          type: string
+        ssh_key_id:
+          type: string
+        storage:
+          type: array
+          items:
+            type: object
+            properties:
+              size_gb:
+                type: integer
+              volume_type:
+                type: string
+        network:
+          type: object
+          properties:
+            vpc_id:
+              type: string
+            subnet_id:
+              type: string
+            public_ip:
+              type: boolean
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - name
+        - instance_type
+        - region
+
+    Volume:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        size_gb:
+          type: integer
+        volume_type:
+          type: string
+          enum: [ssd, hdd, nvme]
+        status:
+          type: string
+          enum: [available, in-use, error, creating]
+        attached_to:
+          type: string
+          format: uuid
+          nullable: true
+        iops:
+          type: integer
+        throughput_mb_s:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    VolumeList:
+      type: object
+      properties:
+        volumes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Volume'
+        total:
+          type: integer
+
+    # Query DSL schemas for QUERY method
+    QueryRequest:
+      type: object
+      properties:
+        filter:
+          type: object
+          additionalProperties: true
+          description: Filter criteria
+        sort:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              direction:
+                type: string
+                enum: [asc, desc]
+        facet:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              limit:
+                type: integer
+        aggregation:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [count, sum, avg, min, max]
+              field:
+                type: string
+              name:
+                type: string
+        pagination:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [offset, cursor]
+            offset:
+              type: integer
+            limit:
+              type: integer
+            cursor:
+              type: string
+
+    QueryResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        total:
+          type: integer
+        facets:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                value:
+                  type: string
+                count:
+                  type: integer
+        aggregations:
+          type: object
+          additionalProperties: true
+
+    # Monitoring schemas
+    MetricQuery:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              aggregation:
+                type: string
+                enum: [avg, sum, min, max, count, rate]
+              group_by:
+                type: array
+                items:
+                  type: string
+              alias:
+                type: string
+        time_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+            duration:
+              type: string
+              pattern: "^[0-9]+(s|m|h|d)$"
+            interval:
+              type: string
+              pattern: "^[0-9]+(s|m|h|d)$"
+
+    MetricQueryResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              values:
+                type: object
+                additionalProperties:
+                  type: number
+        query_time_ms:
+          type: integer

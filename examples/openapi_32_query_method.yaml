@@ -1,0 +1,660 @@
+# OpenAPI 3.2 QUERY Method Example
+# Demonstrates the QUERY HTTP method introduced in OpenAPI 3.2
+# The QUERY method is used for executing complex queries on resources
+
+openapi: 3.2.0
+info:
+  title: Advanced Query API
+  summary: |
+    Demonstrates the QUERY HTTP method for complex, resource-querying operations.
+    QUERY is designed for situations where GET's simple query parameters are insufficient.
+  description: |
+    This API showcases the QUERY HTTP method introduced in OpenAPI 3.2.
+
+    **What is the QUERY method?**
+    The QUERY method is a new HTTP method for executing complex queries on resources.
+    Unlike GET, which uses simple query parameters, QUERY allows sending complex
+    query criteria in the request body.
+
+    **When to use QUERY vs GET:**
+    - Use GET for simple queries with a few filters (e.g., /users?status=active&limit=10)
+    - Use QUERY for complex queries with:
+      - Multiple nested filters
+      - Complex boolean logic (AND, OR, NOT)
+      - Sorting on multiple fields
+      - Faceted search
+      - Aggregations
+
+    **QUERY semantics:**
+    - Safe: Does not modify resource state
+    - Idempotent: Same query produces same results
+    - Cacheable: Responses can be cached
+    - Request body: Contains the query specification
+  version: '1.0.0'
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+
+paths:
+  /users:
+    # Traditional GET for simple queries
+    get:
+      summary: List users (simple filtering)
+      description: |
+        Use this endpoint for simple user listing with basic filters.
+        For complex queries, use the QUERY method instead.
+      operationId: listUsers
+      tags:
+        - Users
+      parameters:
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            type: string
+            enum: [active, inactive, suspended]
+        - name: role
+          in: query
+          description: Filter by role
+          schema:
+            type: string
+            enum: [user, moderator, admin]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  total:
+                    type: integer
+
+    # === OpenAPI 3.2 Feature: QUERY Method ===
+    # QUERY method for complex user queries
+    query:
+      summary: Query users with complex criteria
+      description: |
+        Execute complex queries on the user collection.
+        Supports filtering, sorting, faceting, and aggregation.
+
+        **Example use cases:**
+        - Find users who match multiple criteria with boolean logic
+        - Sort by multiple fields with different directions
+        - Get faceted counts (e.g., count by status, count by role)
+        - Apply complex pagination with cursor-based offset
+      operationId: queryUsers
+      tags:
+        - Users
+      parameters:
+        - name: include
+          in: query
+          description: Include related resources in response
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [profile, preferences, permissions]
+            default: []
+        - name: fields
+          in: query
+          description: Select specific fields to return
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [id, username, email, status, created_at]
+      requestBody:
+        required: true
+        description: Query DSL (Domain Specific Language) for complex queries
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              simple_filter:
+                summary: Simple filter by status
+                value:
+                  filter:
+                    status:
+                      eq: "active"
+              complex_boolean:
+                summary: Complex boolean logic
+                value:
+                  filter:
+                    and:
+                      - status:
+                          eq: "active"
+                      - or:
+                          - role:
+                              eq: "admin"
+                          - role:
+                              eq: "moderator"
+                      - created_at:
+                          gte: "2024-01-01T00:00:00Z"
+              nested_object_filter:
+                summary: Filter on nested profile data
+                value:
+                  filter:
+                    profile.location.country:
+                      eq: "US"
+                    profile.date_of_birth:
+                      lte: "2000-01-01"
+              array_operations:
+                summary: Filter on array fields
+                value:
+                  filter:
+                    roles:
+                      array_contains: "admin"
+                    tags:
+                      overlaps: ["premium", "verified"]
+              sorting:
+                summary: Multi-field sorting
+                value:
+                  sort:
+                    - field: "created_at"
+                      direction: "desc"
+                    - field: "username"
+                      direction: "asc"
+              faceted_search:
+                summary: Faceted search with aggregations
+                value:
+                  filter:
+                    status:
+                      eq: "active"
+                  facet:
+                    - field: "profile.location.country"
+                      limit: 10
+                    - field: "role"
+                      limit: 5
+                  aggregation:
+                    - type: "count"
+                      field: "id"
+                      name: "total_users"
+              full_complex_query:
+                summary: Complete complex query example
+                value:
+                  filter:
+                    and:
+                      - status:
+                          eq: "active"
+                      - or:
+                          - username:
+                              regex: "^admin"
+                          - email:
+                              contains: "admin"
+                      - created_at:
+                          between: ["2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"]
+                  sort:
+                    - field: "created_at"
+                      direction: "desc"
+                  facet:
+                    - field: "role"
+                    - field: "profile.location.country"
+                  pagination:
+                    type: "cursor"
+                    cursor: "eyJpZCI6MTIzNDU2fQ=="
+                    limit: 20
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+              examples:
+                basic_response:
+                  summary: Basic query response
+                  value:
+                    results:
+                      - id: "user-001"
+                        username: "admin"
+                        email: "admin@example.com"
+                        status: "active"
+                        role: "admin"
+                      - id: "user-002"
+                        username: "moderator"
+                        email: "mod@example.com"
+                        status: "active"
+                        role: "moderator"
+                    total: 2
+                    limit: 20
+                    offset: 0
+                faceted_response:
+                  summary: Response with facets
+                  value:
+                    results:
+                      - id: "user-001"
+                        username: "john"
+                        status: "active"
+                    total: 150
+                    facets:
+                      role:
+                        - value: "user"
+                          count: 120
+                        - value: "admin"
+                          count: 5
+                        - value: "moderator"
+                          count: 25
+                      status:
+                        - value: "active"
+                          count: 140
+                        - value: "inactive"
+                          count: 10
+                aggregated_response:
+                  summary: Response with aggregations
+                  value:
+                    results: []
+                    total: 1000
+                    aggregations:
+                      total_users: 1000
+                      avg_age: 34.5
+                      by_status:
+                        active: 850
+                        inactive: 100
+                        suspended: 50
+        '400':
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /products:
+    get:
+      summary: List products (simple)
+      operationId: listProducts
+      tags:
+        - Products
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: in_stock
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+    query:
+      summary: Query products with complex filters
+      description: |
+        Complex product search with filtering, sorting, and faceting.
+        Great for e-commerce search experiences.
+      operationId: queryProducts
+      tags:
+        - Products
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              price_range_filter:
+                summary: Filter by price range
+                value:
+                  filter:
+                    and:
+                      - price:
+                          gte: 50
+                      - price:
+                          lte: 200
+                      - in_stock:
+                          eq: true
+                  sort:
+                    - field: "price"
+                      direction: "asc"
+              multi_facet_search:
+                summary: E-commerce style faceted search
+                value:
+                  filter:
+                    and:
+                      - categories:
+                          overlaps: ["electronics", "computers"]
+                      - price:
+                          lte: 1000
+                  facet:
+                    - field: "categories"
+                    - field: "brand"
+                    - field: "price_range"
+                  pagination:
+                    type: "offset"
+                    offset: 0
+                    limit: 20
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        role:
+          type: string
+          enum: [user, moderator, admin]
+        profile:
+          type: object
+          properties:
+            first_name:
+              type: string
+            last_name:
+              type: string
+            location:
+              type: object
+              properties:
+                country:
+                  type: string
+                city:
+                  type: string
+            date_of_birth:
+              type: string
+              format: date
+        preferences:
+          type: object
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        categories:
+          type: array
+          items:
+            type: string
+        brand:
+          type: string
+        in_stock:
+          type: boolean
+        quantity:
+          type: integer
+        attributes:
+          type: object
+          additionalProperties: true
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+
+    # Query Request Schema - defines the structure of complex queries
+    QueryRequest:
+      type: object
+      description: |
+        Query DSL (Domain Specific Language) for complex queries.
+        All fields are optional - include only what you need.
+      properties:
+        filter:
+          $ref: '#/components/schemas/FilterExpression'
+        sort:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Field name (supports nested notation with dots)
+              direction:
+                type: string
+                enum: [asc, desc]
+                default: asc
+            required:
+              - field
+        facet:
+          type: array
+          description: |
+            Request faceted counts for specified fields.
+            Returns counts of documents grouped by field values.
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              limit:
+                type: integer
+                minimum: 1
+                default: 10
+            required:
+              - field
+        aggregation:
+          type: array
+          description: |
+            Request aggregations (sum, count, avg, min, max)
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [count, sum, avg, min, max]
+              field:
+                type: string
+              name:
+                type: string
+                description: Name for this aggregation result
+            required:
+              - type
+              - field
+        pagination:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [offset, cursor]
+              default: offset
+            offset:
+              type: integer
+              minimum: 0
+              default: 0
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+              default: 20
+            cursor:
+              type: string
+              description: Cursor for cursor-based pagination
+
+    FilterExpression:
+      type: object
+      description: |
+        Recursive filter expression supporting nested boolean logic.
+        Can be a simple comparison or complex boolean combination.
+      properties:
+        # Boolean operators
+        and:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterExpression'
+        or:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterExpression'
+        not:
+          $ref: '#/components/schemas/FilterExpression'
+
+        # Comparison operators (key is field name)
+        eq:
+          description: Equals
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+        ne:
+          description: Not equals
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+        gt:
+          description: Greater than
+          type: number
+        gte:
+          description: Greater than or equal
+          type: number
+        lt:
+          description: Less than
+          type: number
+        lte:
+          description: Less than or equal
+          type: number
+        between:
+          description: Between two values (inclusive)
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: number
+          minItems: 2
+          maxItems: 2
+
+        # String operators
+        contains:
+          description: Contains substring
+          type: string
+        starts_with:
+          description: Starts with
+          type: string
+        ends_with:
+          description: Ends with
+          type: string
+        regex:
+          description: Matches regular expression
+          type: string
+
+        # Array operators
+        array_contains:
+          description: Array contains exact value
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+        overlaps:
+          description: Array overlaps with given values
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: number
+
+    QueryResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        total:
+          type: integer
+          description: Total number of matching results
+        limit:
+          type: integer
+        offset:
+          type: integer
+        facets:
+          type: object
+          description: |
+            Faceted counts if facets were requested.
+            Map of field name to array of {value, count} objects.
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                value:
+                  type: string
+                count:
+                  type: integer
+        aggregations:
+          type: object
+          description: |
+            Aggregation results if aggregations were requested.
+            Map of aggregation name to result value.
+          additionalProperties: true
+        next_cursor:
+          type: string
+          description: Cursor for next page (if using cursor pagination)
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+tags:
+  - name: Users
+    description: User management and queries
+  - name: Products
+    description: Product catalog and search

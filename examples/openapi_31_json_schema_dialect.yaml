@@ -1,0 +1,442 @@
+# OpenAPI 3.1 JSON Schema Dialect Example
+# Demonstrates the jsonSchemaDialect feature introduced in OpenAPI 3.1
+# jsonSchemaDialect specifies which JSON Schema dialect is used in the document
+
+openapi: 3.1.0
+# === OpenAPI 3.1 Feature: JSON Schema Dialect ===
+# Specifies the default JSON Schema dialect for all schemas in this document.
+# If not specified, the default is the OpenAPI 3.1 dialect base.
+jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base
+
+info:
+  title: User Management API
+  description: |
+    This API demonstrates the use of jsonSchemaDialect in OpenAPI 3.1.
+    The jsonSchemaDialect field specifies which JSON Schema specification
+    version should be used to validate schemas within this document.
+  version: '1.0.0'
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production API
+
+paths:
+  /users:
+    get:
+      summary: List all users
+      operationId: listUsers
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of users to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+            examples:
+              standard_user:
+                summary: Standard user registration
+                value:
+                  username: "johndoe"
+                  email: "john.doe@example.com"
+                  password: "SecurePass123!"
+                  profile:
+                    first_name: "John"
+                    last_name: "Doe"
+                    date_of_birth: "1990-01-15"
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{user_id}:
+    get:
+      summary: Get user by ID
+      operationId: getUserById
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: Unique user identifier
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      summary: Update user (partial)
+      operationId: updateUserPartial
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUser'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    # User schema demonstrating OpenAPI 3.1 JSON Schema features
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+          readOnly: true
+          examples:
+            - "550e8400-e29b-41d4-a716-446655440000"
+        username:
+          type: string
+          description: Unique username
+          minLength: 3
+          maxLength: 30
+          pattern: "^[a-zA-Z0-9_]+$"
+          examples:
+            - "johndoe"
+            - "alice_123"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          examples:
+            - "user@example.com"
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+        roles:
+          type: array
+          description: User roles and permissions
+          items:
+            type: string
+            enum: [user, moderator, admin]
+          default: ["user"]
+        status:
+          type: string
+          enum: [active, inactive, suspended, deleted]
+          default: active
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_login_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - id
+        - username
+        - email
+      dependentSchemas:
+        # OpenAPI 3.1 feature: conditional subschemas
+        status:
+          oneOf:
+            - properties:
+                status:
+                  const: "suspended"
+                suspension_reason:
+                  type: string
+              required: ["suspension_reason"]
+            - properties:
+                status:
+                  const: "deleted"
+                deleted_at:
+                  type: string
+                  format: date-time
+              required: ["deleted_at"]
+
+    UserProfile:
+      type: object
+      description: Extended user profile information
+      properties:
+        first_name:
+          type: string
+          maxLength: 50
+        last_name:
+          type: string
+          maxLength: 50
+        display_name:
+          type: string
+          maxLength: 100
+        bio:
+          type: string
+          maxLength: 500
+        avatar_url:
+          type: string
+          format: uri
+          examples:
+            - "https://example.com/avatars/user123.jpg"
+        date_of_birth:
+          type: string
+          format: date
+        location:
+          $ref: '#/components/schemas/Location'
+        social_links:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
+      minProperties: 1
+
+    UserPreferences:
+      type: object
+      description: User settings and preferences
+      properties:
+        language:
+          type: string
+          default: "en"
+          examples:
+            - "en"
+            - "es"
+            - "fr"
+            - "de"
+            - "zh"
+        timezone:
+          type: string
+          default: "UTC"
+          examples:
+            - "America/New_York"
+            - "Europe/London"
+            - "Asia/Tokyo"
+        theme:
+          type: string
+          enum: [light, dark, auto]
+          default: "auto"
+        notifications:
+          type: object
+          properties:
+            email:
+              type: boolean
+              default: true
+            push:
+              type: boolean
+              default: true
+            sms:
+              type: boolean
+              default: false
+        privacy:
+          type: object
+          properties:
+            profile_visible:
+              type: boolean
+              default: true
+            show_email:
+              type: boolean
+              default: false
+            allow_messages:
+              type: boolean
+              default: true
+
+    Location:
+      type: object
+      properties:
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code
+          pattern: "^[A-Z]{2}$"
+          examples:
+            - "US"
+            - "GB"
+            - "JP"
+        region:
+          type: string
+        city:
+          type: string
+        postal_code:
+          type: string
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+
+    Coordinates:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: float
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: float
+          minimum: -180
+          maximum: 180
+
+    CreateUser:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: "^[a-zA-Z0-9_]+$"
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          description: |
+            Password must be at least 12 characters with:
+            - One uppercase letter
+            - One lowercase letter
+            - One number
+            - One special character
+          minLength: 12
+          maxLength: 128
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+"
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+
+    UpdateUser:
+      type: object
+      description: Partial user update (all fields optional)
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: "^[a-zA-Z0-9_]+$"
+        email:
+          type: string
+          format: email
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+        status:
+          type: string
+          enum: [active, inactive, suspended, deleted]
+
+    Error:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+          examples:
+            - "VALIDATION_ERROR"
+            - "NOT_FOUND"
+            - "DUPLICATE_USER"
+            - "UNAUTHORIZED"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        request_id:
+          type: string
+          description: Unique identifier for this request
+          readOnly: true

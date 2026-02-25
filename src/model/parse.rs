@@ -29,6 +29,15 @@ pub struct OpenAPI {
     pub servers: Vec<ServerObject>,
     pub paths: HashMap<String, PathItem>,
     pub components: Option<ComponentsObject>,
+
+    // === OpenAPI 3.1 fields ===
+    #[serde(rename = "jsonSchemaDialect")]
+    pub json_schema_dialect: Option<String>,
+    pub webhooks: Option<HashMap<String, PathItem>>,
+
+    // === OpenAPI 3.2 fields ===
+    #[serde(rename = "$self")]
+    pub self_ref: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,6 +47,10 @@ pub struct PathItem {
     pub operations: HashMap<String, PathBase>, // For HTTP methods (get, post, etc.)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub servers: Vec<ServerObject>, // Will be ignored during deserialization
+
+    // === OpenAPI 3.2 HTTP method ===
+    pub query: Option<PathBase>, // QUERY method (3.2)
+
     #[serde(flatten)]
     pub extra: serde_yaml::Value, // Catches any other fields
 }
@@ -53,6 +66,16 @@ macro_rules! require_non_empty {
 impl OpenAPI {
     pub fn yaml(contents: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(contents)
+    }
+
+    /// Check if this is an OpenAPI 3.1 spec (3.1.x)
+    pub fn is_31(&self) -> bool {
+        self.openapi.starts_with("3.1")
+    }
+
+    /// Check if this is an OpenAPI 3.2 spec (3.2.x)
+    pub fn is_32(&self) -> bool {
+        self.openapi.starts_with("3.2")
     }
 
     pub fn validator(&self, valid: impl ValidateRequest) -> Result<(), String> {
@@ -102,6 +125,9 @@ pub struct InfoObject {
     pub title: String,
     pub description: Option<String>,
     pub version: String,
+
+    // === OpenAPI 3.2 field ===
+    pub summary: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -285,6 +311,8 @@ pub enum TypeOrUnion {
 #[serde(rename_all(deserialize = "lowercase"))]
 pub enum In {
     Query,
+    #[serde(rename = "querystring")]
+    QueryString, // OpenAPI 3.2
     Header,
     Path,
     Cookie,

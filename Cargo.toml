@@ -13,6 +13,17 @@ axum = ["dep:axum"]
 actix-web = ["dep:actix-web"]
 test-with-axum = ["axum"]
 
+[[example]]
+name = "observability_test"
+required-features = ["axum"]
+
+# OpenAPI 3.1 and 3.2 feature examples
+[[example]]
+name = "openapi_31_features"
+
+[[example]]
+name = "openapi_32_features"
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"

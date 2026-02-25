@@ -44,10 +44,18 @@ pub trait ValidateRequest {
 }
 
 pub fn method(path: &str, method: &str, open_api: &OpenAPI) -> Result<()> {
-    let path = open_api.paths.get(path).context("Path not found")?;
+    let path_item = open_api.paths.get(path).context("Path not found")?;
 
-    if !path.operations.contains_key(method) {
-        return Err(anyhow::anyhow!("Path is empty"));
+    // Check operations or QUERY method (OpenAPI 3.2)
+    let exists = path_item.operations.contains_key(method)
+        || (method.eq_ignore_ascii_case("query") && path_item.query.is_some());
+
+    if !exists {
+        return Err(anyhow::anyhow!(
+            "Method '{}' not found for path '{}'",
+            method,
+            path
+        ));
     }
 
     Ok(())
@@ -140,9 +148,27 @@ pub fn query(path: &str, query_pairs: &HashMap<String, String>, open_api: &OpenA
             continue;
         }
 
-        let (Some(name), Some(In::Query)) = (&parameter.name, &parameter.r#in) else {
+        let (Some(name), Some(location)) = (&parameter.name, &parameter.r#in) else {
             continue;
         };
+
+        // Handle OpenAPI 3.2 querystring parameters (JSON in query string)
+        if *location == In::QueryString {
+            if let Some(value) = query_pairs.get(name) {
+                // Must be valid JSON
+                if serde_json::from_str::<Value>(value).is_err() {
+                    return Err(anyhow!(
+                        "QueryString parameter '{}' must be valid JSON",
+                        name
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if *location != In::Query {
+            continue;
+        }
 
         match query_pairs.get(name) {
             Some(value) => {
@@ -204,6 +230,7 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
         .get(path)
         .context("Path not found in OpenAPI specification")?;
 
+    // Check for request body in traditional methods (post, put, patch, delete)
     let request = path_base.operations.iter().find_map(|(method, operation)| {
         if matches!(method.as_str(), "post" | "put" | "patch" | "delete") {
             operation.request.as_ref()
@@ -211,6 +238,12 @@ pub fn body(path: &str, fields: Value, open_api: &OpenAPI) -> Result<()> {
             None
         }
     });
+
+    // If no traditional method request body found, check for OpenAPI 3.2 QUERY method
+    let request = match request {
+        Some(r) => Some(r),
+        None => path_base.query.as_ref().and_then(|q| q.request.as_ref()),
+    };
 
     if let Some(request) = request {
         if request.required && matches!(fields, Value::Null) {

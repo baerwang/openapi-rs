@@ -1,0 +1,466 @@
+# OpenAPI 3.2 QueryString Parameter Example
+# Demonstrates the querystring parameter location introduced in OpenAPI 3.2
+# The querystring parameter type is used for complex query parameter structures
+
+openapi: 3.2.0
+info:
+  title: Advanced Search API
+  summary: |
+    Demonstrates the querystring parameter type for complex query parameter structures.
+  description: |
+    This API showcases the querystring parameter location introduced in OpenAPI 3.2.
+
+    **What is the querystring parameter type?**
+    The querystring parameter type allows sending complex, structured data as a query
+    parameter. Unlike regular query parameters which handle simple scalar values,
+    querystring parameters can handle:
+
+    - Nested objects
+    - Arrays of values
+    - Complex filter criteria
+    - Structured data encoded in the query string
+
+    **When to use querystring vs query:**
+    - Use `in: query` for simple scalar parameters (e.g., ?status=active&limit=10)
+    - Use `in: querystring` for complex structured data (e.g., ?filter={"status":"active","age":{"gte":18}})
+
+    **Encoding:**
+    querystring parameters are typically URL-encoded JSON or form-encoded structures.
+  version: '1.0.0'
+
+servers:
+  - url: https://api.example.com/v1
+
+paths:
+  /search:
+    get:
+      summary: Advanced search with querystring parameters
+      description: |
+        Search resources using complex, structured query parameters.
+        This endpoint demonstrates the querystring parameter type.
+      operationId: advancedSearch
+      tags:
+        - Search
+      parameters:
+        # === OpenAPI 3.2 Feature: querystring parameter location ===
+        - name: filter
+          in: querystring
+          description: |
+            Complex filter object as query string.
+            Supports nested properties and boolean logic.
+
+            Example query string:
+            ?filter={"status":"active","age":{"gte":18,"lte":65},"tags":["premium","verified"]}
+
+            URL-encoded:
+            ?filter=%7B%22status%22%3A%22active%22%2C%22age%22%3A%7B%22gte%22%3A18%2C%22lte%22%3A65%7D%2C%22tags%22%3A%5B%22premium%22%2C%22verified%22%5D%7D
+          required: false
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterObject'
+              examples:
+                simple_filter:
+                  summary: Simple status filter
+                  value:
+                    status: "active"
+                nested_filter:
+                  summary: Nested price range filter
+                  value:
+                    price:
+                      min: 10
+                      max: 100
+                boolean_logic:
+                  summary: Complex boolean logic
+                  value:
+                    and:
+                      - status: "active"
+                      - or:
+                          - category: "electronics"
+                          - category: "computers"
+                      - price:
+                          lte: 500
+                array_filter:
+                  summary: Filter with array of values
+                  value:
+                    tags: ["new", "featured", "sale"]
+                    categories: ["electronics", "books"]
+
+        - name: sort
+          in: querystring
+          description: |
+            Sort criteria as a structured object.
+            Supports multiple sort fields with directions.
+
+            Example: ?sort=[{"field":"price","direction":"asc"},{"field":"name","direction":"asc"}]
+          required: false
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                      description: Field to sort by
+                    direction:
+                      type: string
+                      enum: [asc, desc]
+                      default: asc
+                  required:
+                    - field
+              examples:
+                single_field:
+                  summary: Sort by single field
+                  value:
+                    - field: "price"
+                      direction: "asc"
+                multiple_fields:
+                  summary: Sort by multiple fields
+                  value:
+                    - field: "category"
+                      direction: "asc"
+                    - field: "price"
+                      direction: "asc"
+                    - field: "name"
+                      direction: "asc"
+
+        - name: fields
+          in: querystring
+          description: |
+            Field selection - specify which fields to include in response.
+            Useful for reducing response size.
+
+            Example: ?fields=["id","name","price"]
+          required: false
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              examples:
+                basic_fields:
+                  summary: Basic fields only
+                  value: ["id", "name", "price"]
+                detailed_fields:
+                  summary: Include more fields
+                  value: ["id", "name", "description", "price", "stock", "rating"]
+
+        - name: pagination
+          in: querystring
+          description: |
+            Pagination settings as a structured object.
+            Supports both offset-based and cursor-based pagination.
+          required: false
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [offset, cursor]
+                    default: offset
+                  offset:
+                    type: integer
+                    minimum: 0
+                    default: 0
+                  limit:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                    default: 20
+                  cursor:
+                    type: string
+                    description: Cursor for cursor-based pagination
+              examples:
+                offset_pagination:
+                  summary: Offset-based pagination
+                  value:
+                    type: "offset"
+                    offset: 0
+                    limit: 20
+                cursor_pagination:
+                  summary: Cursor-based pagination
+                  value:
+                    type: "cursor"
+                    cursor: "eyJpZCI6MTIzNDU2fQ=="
+                    limit: 20
+
+        # Regular query parameters can coexist with querystring
+        - name: format
+          in: query
+          description: Response format
+          schema:
+            type: string
+            enum: [json, xml, csv]
+            default: json
+
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+              examples:
+                basic_response:
+                  summary: Basic search response
+                  value:
+                    results:
+                      - id: "prod-001"
+                        name: "Product A"
+                        price: 29.99
+                      - id: "prod-002"
+                        name: "Product B"
+                        price: 49.99
+                    total: 2
+                    limit: 20
+                    offset: 0
+                paginated_response:
+                  summary: Paginated response
+                  value:
+                    results:
+                      - id: "prod-001"
+                        name: "Product A"
+                    total: 150
+                    limit: 20
+                    offset: 0
+                    has_more: true
+
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /analytics/query:
+    get:
+      summary: Analytics query with complex parameters
+      description: |
+        Execute analytics queries with structured parameters.
+        Demonstrates querystring for complex filter and aggregation parameters.
+      operationId: analyticsQuery
+      tags:
+        - Analytics
+      parameters:
+        - name: filters
+          in: querystring
+          description: |
+            Complex filter criteria for analytics data.
+            Supports time ranges, dimensions, and metrics filters.
+          required: false
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date_range:
+                    type: object
+                    properties:
+                      start:
+                        type: string
+                        format: date-time
+                      end:
+                        type: string
+                        format: date-time
+                  dimensions:
+                    type: array
+                    items:
+                      type: string
+                  metrics:
+                    type: array
+                    items:
+                      type: string
+                  segment:
+                    type: object
+                    properties:
+                      user_type:
+                        type: string
+                        enum: [new, returning, premium]
+              examples:
+                date_filter:
+                  summary: Filter by date range
+                  value:
+                    date_range:
+                      start: "2024-01-01T00:00:00Z"
+                      end: "2024-12-31T23:59:59Z"
+                segmented_analysis:
+                  summary: Segmented analytics
+                  value:
+                    date_range:
+                      start: "2024-01-01T00:00:00Z"
+                      end: "2024-12-31T23:59:59Z"
+                    dimensions: ["category", "region"]
+                    metrics: ["views", "clicks", "conversions"]
+                    segment:
+                      user_type: "premium"
+
+        - name: aggregations
+          in: querystring
+          description: |
+            Aggregation specifications.
+            Defines how to group and aggregate data.
+          required: false
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    operation:
+                      type: string
+                      enum: [sum, avg, count, min, max]
+                    alias:
+                      type: string
+                      description: Name for the aggregated field
+              examples:
+                basic_aggregations:
+                  summary: Basic aggregations
+                  value:
+                    - field: "revenue"
+                      operation: "sum"
+                      alias: "total_revenue"
+                    - field: "orders"
+                      operation: "count"
+                      alias: "order_count"
+
+      responses:
+        '200':
+          description: Analytics results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+                  query_time_ms:
+                    type: integer
+
+components:
+  schemas:
+    FilterObject:
+      type: object
+      description: |
+        Complex filter object supporting nested properties and boolean logic.
+        Used as querystring parameter value.
+      properties:
+        # Simple equality filters
+        status:
+          type: string
+          enum: [active, inactive, pending, cancelled]
+        category:
+          type: string
+
+        # Nested object filters
+        price:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            gte:
+              type: number
+            lte:
+              type: number
+            gt:
+              type: number
+            lt:
+              type: number
+
+        # Boolean logic
+        and:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterObject'
+        or:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterObject'
+        not:
+          $ref: '#/components/schemas/FilterObject'
+
+        # Array filters
+        tags:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            type: string
+
+        # Text search
+        search:
+          type: object
+          properties:
+            query:
+              type: string
+            fields:
+              type: array
+              items:
+                type: string
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        total:
+          type: integer
+          description: Total number of results
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+          description: Whether more results are available
+        facets:
+          type: object
+          description: Faceted counts if requested
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                value:
+                  type: string
+                count:
+                  type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required:
+        - error
+        - code
+
+tags:
+  - name: Search
+    description: Advanced search endpoints
+  - name: Analytics
+    description: Analytics and reporting

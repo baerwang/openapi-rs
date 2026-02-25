@@ -59,10 +59,14 @@ mod tests {
                 title: "Test API".to_string(),
                 description: None,
                 version: "1.0.0".to_string(),
+                summary: None,
             },
             servers: vec![],
             paths: HashMap::new(),
             components: None,
+            json_schema_dialect: None,
+            webhooks: None,
+            self_ref: None,
         }
     }
 
@@ -148,6 +152,7 @@ mod tests {
             parameters: None,
             operations,
             servers: vec![],
+            query: None,
             extra: serde_yaml::Value::Null,
         };
 
